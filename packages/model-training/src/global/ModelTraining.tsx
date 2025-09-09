@@ -12,7 +12,7 @@ import ModelTrainingProjectSelector from '../components/ModelTrainingProjectSele
 
 const title = 'Model training';
 const description =
-  'Select a project to view its PyTorch training jobs. Monitor training progress and manage distributed training workloads across your data science projects.';
+  'Select a project to view its training jobs. Monitor training progress and manage distributed training workloads across your data science projects.';
 
 const ModelTraining = (): React.ReactElement => {
   const navigate = useNavigate();

@@ -12,13 +12,22 @@ import ModelTrainingProjectSelector from '../components/ModelTrainingProjectSele
 
 const title = 'Model training';
 const description =
-  'Select a project to view its PyTorch training jobs. Monitor training progress and manage distributed training workloads across your data science projects.';
+  'UPDATED: Select a project to view its training jobs (PyTorch & TrainJobs). Monitor training progress and manage distributed training workloads across your data science projects.';
 
 const ModelTraining = (): React.ReactElement => {
   const navigate = useNavigate();
-  const { pytorchJobs, project, preferredProject, projects } =
+  const { pytorchJobs, trainJobs, project, preferredProject, projects } =
     React.useContext(ModelTrainingContext);
   const [pytorchJobData, pytorchJobLoaded, pytorchJobLoadError] = pytorchJobs;
+  const [trainJobData, trainJobLoaded, trainJobLoadError] = trainJobs;
+
+  // Combine both job types
+  const allJobs = React.useMemo(() => {
+    return [...pytorchJobData, ...trainJobData];
+  }, [pytorchJobData, trainJobData]);
+
+  const allJobsLoaded = pytorchJobLoaded && trainJobLoaded;
+  const allJobsLoadError = pytorchJobLoadError || trainJobLoadError;
 
   const emptyState = (
     <EmptyState
@@ -29,19 +38,19 @@ const ModelTraining = (): React.ReactElement => {
       data-testid="empty-state-title"
     >
       <EmptyStateBody data-testid="empty-state-body">
-        No PyTorch training jobs have been found in this project.
+        No training jobs have been found in this project.
       </EmptyStateBody>
     </EmptyState>
   );
 
   return (
     <ApplicationsPage
-      empty={pytorchJobData.length === 0}
+      empty={allJobs.length === 0}
       emptyStatePage={emptyState}
       title={<TitleWithIcon title={title} objectType={ProjectObjectType.modelCustomization} />}
       description={description}
-      loadError={pytorchJobLoadError}
-      loaded={pytorchJobLoaded}
+      loadError={allJobsLoadError}
+      loaded={allJobsLoaded}
       headerContent={
         <ModelTrainingProjectSelector getRedirectPath={(ns: string) => `/modelTraining/${ns}`} />
       }
@@ -61,7 +70,7 @@ const ModelTraining = (): React.ReactElement => {
         )
       }
     >
-      <TrainingJobListView trainingJobs={pytorchJobData} />
+      <TrainingJobListView trainingJobs={allJobs} />
     </ApplicationsPage>
   );
 };

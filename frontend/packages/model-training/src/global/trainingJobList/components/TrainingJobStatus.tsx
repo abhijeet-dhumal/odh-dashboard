@@ -1,19 +1,18 @@
 import React from 'react';
 import { Flex, FlexItem, Label, Progress, Skeleton } from '@patternfly/react-core';
-import { getJobStatusFromPyTorchJob, getStatusInfo } from '../utils';
-import { PyTorchJobKind } from '../../../k8sTypes';
-import { PyTorchJobState } from '../../../types';
+import { getJobStatus, getStatusInfo, TrainingJob } from '../utils';
+import { TrainingJobState } from '../../../types';
 
 const TrainingJobStatus = ({
   job,
   jobStatus,
 }: {
-  job: PyTorchJobKind;
-  jobStatus?: PyTorchJobState;
+  job: TrainingJob;
+  jobStatus?: TrainingJobState;
 }): React.ReactElement => {
-  const status = jobStatus || getJobStatusFromPyTorchJob(job);
+  const status = jobStatus || getJobStatus(job);
   const isLoadingStatus = jobStatus === undefined;
-  const isRunning = status === PyTorchJobState.RUNNING;
+  const isRunning = status === 'Running';
 
   if (isLoadingStatus) {
     return <Skeleton height="24px" width="80px" />;
@@ -35,9 +34,15 @@ const TrainingJobStatus = ({
         </Label>
       </FlexItem>
       {/* Only show progress bar if job is running and completion percentage is available */}
-      {isRunning && job.status?.completionPercentage ? (
+      {isRunning && job.kind === 'PyTorchJob' && (job as any).status?.completionPercentage ? (
         <FlexItem>
-          <Progress value={job.status.completionPercentage} style={{ width: '200px' }} size="sm" />
+          <Progress value={(job as any).status.completionPercentage} style={{ width: '200px' }} size="sm" />
+        </FlexItem>
+      ) : null}
+      {/* Show progress for TrainJob if available */}
+      {isRunning && job.kind === 'TrainJob' && (job as any).status?.trainingProgress?.percentComplete ? (
+        <FlexItem>
+          <Progress value={parseFloat((job as any).status.trainingProgress.percentComplete)} style={{ width: '200px' }} size="sm" />
         </FlexItem>
       ) : null}
     </Flex>

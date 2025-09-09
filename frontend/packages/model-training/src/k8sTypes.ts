@@ -1,4 +1,5 @@
 import { K8sResourceCommon } from '@openshift/dynamic-plugin-sdk-utils';
+import { K8sResourceCommon as K8sResource } from '@openshift/dynamic-plugin-sdk-utils';
 
 export type PyTorchJobKind = K8sResourceCommon & {
   metadata: {
@@ -89,5 +90,143 @@ export type PyTorchJobKind = K8sResourceCommon & {
     };
     startTime?: string;
     completionTime?: string;
+  };
+};
+
+// TrainJob types based on trainer.kubeflow.org/v1alpha1
+export type TrainJobKind = K8sResource & {
+  metadata: {
+    annotations?: Partial<{
+      'opendatahub.io/display-name': string;
+    }>;
+    name: string;
+    namespace: string;
+    labels?: {
+      'kueue.x-k8s.io/queue-name'?: string;
+      [key: string]: string | undefined;
+    };
+    uid: string;
+  };
+  spec: {
+    runtimeRef: {
+      name: string;
+      apiGroup?: string;
+      kind?: string;
+    };
+    initializer?: {
+      dataset?: {
+        storageUri?: string;
+        env?: Array<{
+          name: string;
+          value: string;
+        }>;
+        secretRef?: {
+          name: string;
+        };
+      };
+      model?: {
+        storageUri?: string;
+        env?: Array<{
+          name: string;
+          value: string;
+        }>;
+        secretRef?: {
+          name: string;
+        };
+      };
+    };
+    trainer?: {
+      image?: string;
+      command?: string[];
+      args?: string[];
+      env?: Array<{
+        name: string;
+        value: string;
+      }>;
+      numNodes?: number;
+      resourcesPerNode?: {
+        limits?: {
+          cpu?: string;
+          memory?: string;
+          'nvidia.com/gpu'?: number;
+        };
+        requests?: {
+          cpu?: string;
+          memory?: string;
+        };
+      };
+      numProcPerNode?: string | number;
+    };
+    suspend?: boolean;
+    managedBy?: string;
+    checkpointing?: {
+      enabled?: boolean;
+      storage?: {
+        uri: string;
+        secretRef?: {
+          name: string;
+        };
+        accessMode?: string;
+        persistentVolume?: {
+          claimName: string;
+          mountPath?: string;
+          subPath?: string;
+        };
+      };
+      interval?: string;
+      maxCheckpoints?: number;
+      resumeFromCheckpoint?: boolean;
+      env?: Array<{
+        name: string;
+        value: string;
+      }>;
+    };
+  };
+  status?: {
+    conditions?: Array<{
+      type: string;
+      status: string;
+      lastTransitionTime: string;
+      message?: string;
+      reason?: string;
+    }>;
+    jobsStatus?: Array<{
+      name: string;
+      ready: number;
+      succeeded: number;
+      failed: number;
+      active: number;
+      suspended: number;
+    }>;
+    trainingProgress?: {
+      epoch?: number;
+      totalEpochs?: number;
+      step?: number;
+      totalSteps?: number;
+      loss?: string;
+      accuracy?: string;
+      validationLoss?: string;
+      validationAccuracy?: string;
+      learningRate?: string;
+      percentComplete?: string;
+      estimatedTimeRemaining?: string;
+      lastUpdateTime?: string;
+      checkpointing?: {
+        enabled: boolean;
+        latestCheckpoint?: string;
+        latestCheckpointTime?: string;
+        checkpointsCreated: number;
+        latestCheckpointSize?: number;
+        availableCheckpoints?: Array<{
+          path: string;
+          createdAt: string;
+          size?: number;
+          epoch?: number;
+          step?: number;
+          metrics?: Record<string, string>;
+        }>;
+        error?: string;
+      };
+    };
   };
 };

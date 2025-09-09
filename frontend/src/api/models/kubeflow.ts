@@ -13,3 +13,10 @@ export const PyTorchJobModel: K8sModelCommon = {
   kind: 'PyTorchJob',
   plural: 'pytorchjobs',
 };
+
+export const TrainJobModel: K8sModelCommon = {
+  apiVersion: 'v1alpha1',
+  apiGroup: 'trainer.kubeflow.org',
+  kind: 'TrainJob',
+  plural: 'trainjobs',
+};

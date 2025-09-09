@@ -2,10 +2,10 @@ import * as React from 'react';
 import { HelperText, HelperTextItem, Skeleton } from '@patternfly/react-core';
 import { ProjectsContext, byName } from '@odh-dashboard/internal/concepts/projects/ProjectsContext';
 import { getDisplayNameFromK8sResource } from '@odh-dashboard/internal/concepts/k8s/utils';
-import { PyTorchJobKind } from '../../k8sTypes';
+import { TrainingJob } from './utils';
 
 type TrainingJobProjectProps = {
-  trainingJob: PyTorchJobKind;
+  trainingJob: TrainingJob;
 };
 
 const TrainingJobProject: React.FC<TrainingJobProjectProps> = ({ trainingJob }) => {

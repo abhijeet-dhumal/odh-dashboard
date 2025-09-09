@@ -7,22 +7,21 @@ import ResourceNameTooltip from '@odh-dashboard/internal/components/ResourceName
 import { getDisplayNameFromK8sResource } from '@odh-dashboard/internal/concepts/k8s/utils';
 import { relativeTime } from '@odh-dashboard/internal/utilities/time';
 import TrainingJobProject from './TrainingJobProject';
-import { getJobStatusFromPyTorchJob } from './utils';
+import { getJobStatus, TrainingJob } from './utils';
 import TrainingJobClusterQueue from './TrainingJobClusterQueue';
 import HibernationToggleModal from './HibernationToggleModal';
 import TrainingJobStatus from './components/TrainingJobStatus';
-import { PyTorchJobKind } from '../../k8sTypes';
-import { PyTorchJobState } from '../../types';
+import { TrainingJobState } from '../../types';
 import { togglePyTorchJobHibernation } from '../../api';
 
-type PyTorchJobTableRowProps = {
-  job: PyTorchJobKind;
-  jobStatus?: PyTorchJobState;
-  onDelete: (job: PyTorchJobKind) => void;
-  onStatusUpdate?: (jobId: string, newStatus: PyTorchJobState) => void;
+type TrainingJobTableRowProps = {
+  job: TrainingJob;
+  jobStatus?: TrainingJobState;
+  onDelete: (job: TrainingJob) => void;
+  onStatusUpdate?: (jobId: string, newStatus: TrainingJobState) => void;
 };
 
-const TrainingJobTableRow: React.FC<PyTorchJobTableRowProps> = ({
+const TrainingJobTableRow: React.FC<TrainingJobTableRowProps> = ({
   job,
   jobStatus,
   onDelete,
@@ -32,24 +31,32 @@ const TrainingJobTableRow: React.FC<PyTorchJobTableRowProps> = ({
   const [isToggling, setIsToggling] = React.useState(false);
 
   const displayName = getDisplayNameFromK8sResource(job);
-  const workerReplicas = job.spec.pytorchReplicaSpecs.Worker?.replicas || 0;
+  const workerReplicas = job.kind === 'PyTorchJob' 
+    ? (job as any).spec.pytorchReplicaSpecs.Worker?.replicas || 0
+    : (job as any).spec.trainer?.numNodes || 1;
   const localQueueName = job.metadata.labels?.['kueue.x-k8s.io/queue-name'];
 
-  const status = jobStatus || getJobStatusFromPyTorchJob(job);
-  const isSuspended = status === PyTorchJobState.SUSPENDED;
+  const status = jobStatus || getJobStatus(job);
+  const isSuspended = status === 'Suspended';
 
   const handleHibernationToggle = async () => {
     setIsToggling(true);
     try {
-      const result = await togglePyTorchJobHibernation(job);
-      if (result.success) {
-        // Update status optimistically
-        const newStatus = isSuspended ? PyTorchJobState.RUNNING : PyTorchJobState.SUSPENDED;
-        const jobId = job.metadata.uid || job.metadata.name;
-        onStatusUpdate?.(jobId, newStatus);
+      // Only PyTorchJobs support hibernation for now
+      if (job.kind === 'PyTorchJob') {
+        const result = await togglePyTorchJobHibernation(job as any);
+        if (result.success) {
+          // Update status optimistically
+          const newStatus = isSuspended ? 'Running' : 'Suspended';
+          const jobId = job.metadata.uid || job.metadata.name;
+          onStatusUpdate?.(jobId, newStatus as TrainingJobState);
+        } else {
+          console.error('Failed to toggle hibernation:', result.error);
+          // TODO: Show error notification
+        }
       } else {
-        console.error('Failed to toggle hibernation:', result.error);
-        // TODO: Show error notification
+        console.warn('Hibernation not supported for TrainJob');
+        // TODO: Show warning notification
       }
     } catch (error) {
       console.error('Error toggling hibernation:', error);
@@ -66,9 +73,10 @@ const TrainingJobTableRow: React.FC<PyTorchJobTableRowProps> = ({
 
     // Add hibernation toggle action
     const isTerminalState =
-      status === PyTorchJobState.SUCCEEDED || status === PyTorchJobState.FAILED;
+      status === 'Succeeded' || status === 'Complete' || status === 'Failed';
 
-    if (!isTerminalState) {
+    // Only show hibernation toggle for PyTorchJobs and non-terminal states
+    if (!isTerminalState && job.kind === 'PyTorchJob') {
       items.push({
         title: isSuspended ? 'Resume' : 'Suspend',
         onClick: () => setHibernationModalOpen(true),

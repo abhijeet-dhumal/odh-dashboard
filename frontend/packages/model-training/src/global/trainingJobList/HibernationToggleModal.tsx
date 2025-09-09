@@ -2,10 +2,10 @@ import * as React from 'react';
 import { Modal, ModalVariant, ModalHeader, ModalBody, ModalFooter } from '@patternfly/react-core';
 import { getDisplayNameFromK8sResource } from '@odh-dashboard/internal/concepts/k8s/utils';
 import DashboardModalFooter from '@odh-dashboard/internal/concepts/dashboard/DashboardModalFooter';
-import { PyTorchJobKind } from '../../k8sTypes';
+import { TrainingJob } from './utils';
 
 type HibernationToggleModalProps = {
-  job?: PyTorchJobKind;
+  job?: TrainingJob;
   isSuspended: boolean;
   isToggling: boolean;
   onClose: () => void;

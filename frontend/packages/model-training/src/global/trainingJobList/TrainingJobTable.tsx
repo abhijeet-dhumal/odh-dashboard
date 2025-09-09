@@ -4,13 +4,13 @@ import DashboardEmptyTableView from '@odh-dashboard/internal/concepts/dashboard/
 import { columns } from './const';
 import DeleteTrainingJobModal from './DeleteTrainingJobModal';
 import TrainingJobTableRow from './TrainingJobTableRow';
-import { PyTorchJobKind } from '../../k8sTypes';
-import { PyTorchJobState } from '../../types';
+import { TrainingJob } from './utils';
+import { TrainingJobState } from '../../types';
 
 type TrainingJobTableProps = {
-  trainingJobs: PyTorchJobKind[];
-  jobStatuses?: Map<string, PyTorchJobState>; // Batch fetched statuses
-  onStatusUpdate?: (jobId: string, newStatus: PyTorchJobState) => void;
+  trainingJobs: TrainingJob[];
+  jobStatuses?: Map<string, TrainingJobState>; // Batch fetched statuses
+  onStatusUpdate?: (jobId: string, newStatus: TrainingJobState) => void;
   clearFilters?: () => void;
   onClearFilters: () => void;
 } & Partial<Pick<React.ComponentProps<typeof Table>, 'enablePagination' | 'toolbarContent'>>;
@@ -23,7 +23,7 @@ const TrainingJobTable: React.FC<TrainingJobTableProps> = ({
   onClearFilters,
   toolbarContent,
 }) => {
-  const [deleteTrainingJob, setDeleteTrainingJob] = React.useState<PyTorchJobKind>();
+  const [deleteTrainingJob, setDeleteTrainingJob] = React.useState<TrainingJob>();
 
   return (
     <>
@@ -38,7 +38,7 @@ const TrainingJobTable: React.FC<TrainingJobTableProps> = ({
         emptyTableView={
           clearFilters ? <DashboardEmptyTableView onClearFilters={clearFilters} /> : undefined
         }
-        rowRenderer={(job: PyTorchJobKind) => {
+        rowRenderer={(job: TrainingJob) => {
           const jobId = job.metadata.uid || job.metadata.name;
           const jobStatus = jobStatuses?.get(jobId);
 
