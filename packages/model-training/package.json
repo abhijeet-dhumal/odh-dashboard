@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@odh-dashboard/model-training",
-  "description": "Model training plugin for managing training jobs and experiments.",
+  "description": "Model training plugin with PyTorchJob list view support.",
   "version": "0.0.0",
   "scripts": {
     "lint": "eslint .",

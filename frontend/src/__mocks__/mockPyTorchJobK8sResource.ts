@@ -1,12 +1,116 @@
 import * as _ from 'lodash-es';
+import { K8sResourceCommon } from '@openshift/dynamic-plugin-sdk-utils';
 import { genUID } from './mockUtils';
-<<<<<<< HEAD
-import { PyTorchJobKind } from '../../packages/model-training/src/k8sTypes';
-import { PyTorchJobState } from '../../packages/model-training/src/types';
-=======
-import { PyTorchJobState } from '../../../packages/model-training/src/types';
-import { PyTorchJobKind } from '../../../packages/model-training/src/k8sTypes';
->>>>>>> model-training-table
+
+// Local type definitions for PyTorch Job to avoid relative import issues
+export enum PyTorchJobState {
+  CREATED = 'Created',
+  PENDING = 'Pending',
+  QUEUED = 'Queued',
+  RUNNING = 'Running',
+  RESTARTING = 'Restarting',
+  SUCCEEDED = 'Succeeded',
+  FAILED = 'Failed',
+  PAUSED = 'Paused',
+  SUSPENDED = 'Suspended',
+  PREEMPTED = 'Preempted',
+  UNKNOWN = 'Unknown',
+}
+
+export type PyTorchJobKind = K8sResourceCommon & {
+  metadata: {
+    annotations?: Partial<{
+      'opendatahub.io/display-name': string;
+    }>;
+    name: string;
+    namespace: string;
+    labels?: {
+      'kueue.x-k8s.io/queue-name'?: string;
+      [key: string]: string | undefined;
+    };
+    uid: string;
+  };
+  spec: {
+    runPolicy?: {
+      suspend?: boolean;
+    };
+    pytorchReplicaSpecs: {
+      Master?: {
+        replicas: number;
+        restartPolicy?: string;
+        template?: {
+          spec: {
+            containers: Array<{
+              name: string;
+              image: string;
+              args?: string[];
+              resources?: {
+                limits?: {
+                  'nvidia.com/gpu'?: number;
+                  cpu?: string;
+                  memory?: string;
+                };
+                requests?: {
+                  cpu?: string;
+                  memory?: string;
+                };
+              };
+            }>;
+          };
+        };
+      };
+      Worker?: {
+        replicas: number;
+        restartPolicy?: string;
+        template?: {
+          spec: {
+            containers: Array<{
+              name: string;
+              image: string;
+              args?: string[];
+              resources?: {
+                limits?: {
+                  'nvidia.com/gpu'?: number;
+                  cpu?: string;
+                  memory?: string;
+                };
+                requests?: {
+                  cpu?: string;
+                  memory?: string;
+                };
+              };
+            }>;
+          };
+        };
+      };
+    };
+  };
+  status?: {
+    completionPercentage?: number;
+    conditions?: Array<{
+      type: string;
+      status: string;
+      lastUpdateTime?: string;
+      lastTransitionTime?: string;
+      reason?: string;
+      message?: string;
+    }>;
+    replicaStatuses?: {
+      Master?: {
+        active?: number;
+        succeeded?: number;
+        failed?: number;
+      };
+      Worker?: {
+        active?: number;
+        succeeded?: number;
+        failed?: number;
+      };
+    };
+    startTime?: string;
+    completionTime?: string;
+  };
+};
 
 type MockResourceConfigType = {
   name?: string;

@@ -5,6 +5,8 @@ import {
   PendingIcon,
   PlayIcon,
   PauseIcon,
+  OutlinedClockIcon,
+  PauseCircleIcon,
 } from '@patternfly/react-icons';
 import { LabelProps } from '@patternfly/react-core';
 import { PyTorchJobKind } from '../../k8sTypes';
@@ -38,11 +40,23 @@ export const getStatusInfo = (
         color: 'blue',
         IconComponent: InProgressIcon,
       };
+    case PyTorchJobState.RESTARTING:
+      return {
+        label: 'Restarting',
+        color: 'blue',
+        IconComponent: InProgressIcon,
+      };
     case PyTorchJobState.PENDING:
       return {
         label: 'Pending',
         color: 'teal',
         IconComponent: PendingIcon,
+      };
+    case PyTorchJobState.QUEUED:
+      return {
+        label: 'Queued',
+        color: 'teal',
+        IconComponent: OutlinedClockIcon,
       };
     case PyTorchJobState.CREATED:
       return {
@@ -50,11 +64,23 @@ export const getStatusInfo = (
         color: 'grey',
         IconComponent: PlayIcon,
       };
+    case PyTorchJobState.PAUSED:
+      return {
+        label: 'Paused',
+        color: 'grey',
+        IconComponent: PauseCircleIcon,
+      };
     case PyTorchJobState.SUSPENDED:
       return {
         label: 'Suspended',
         color: 'grey',
         IconComponent: PauseIcon,
+      };
+    case PyTorchJobState.PREEMPTED:
+      return {
+        label: 'Preempted',
+        color: 'grey',
+        IconComponent: PendingIcon,
       };
     default:
       return {
@@ -65,7 +91,11 @@ export const getStatusInfo = (
   }
 };
 
-export const getJobStatusFromPyTorchJob = (job: PyTorchJobKind): PyTorchJobState => {
+/**
+ * Get basic PyTorch job status from conditions (synchronous)
+ * This is the core status extraction function used internally
+ */
+const getBasicJobStatus = (job: PyTorchJobKind): PyTorchJobState => {
   if (!job.status?.conditions) {
     return PyTorchJobState.UNKNOWN;
   }
@@ -91,30 +121,116 @@ export const getJobStatusFromPyTorchJob = (job: PyTorchJobKind): PyTorchJobState
       return PyTorchJobState.RUNNING;
     case 'Created':
       return PyTorchJobState.CREATED;
+    case 'Restarting':
+      return PyTorchJobState.RESTARTING;
     default:
       return PyTorchJobState.UNKNOWN;
   }
 };
 
-export const getJobStatusWithHibernation = async (
+/**
+ * Unified function to get training job status with hibernation support (async)
+ * @param job - PyTorch job to check status for
+ * @param options - Configuration options
+ * @returns Promise resolving to the job's current status
+ */
+export const getTrainingJobStatus = async (
   job: PyTorchJobKind,
-): Promise<PyTorchJobState> => {
-  const standardStatus = getJobStatusFromPyTorchJob(job);
-
-  // If the job is in a terminal state (succeeded or failed), don't check hibernation
-  // Terminal states take precedence over hibernation status
-  if (standardStatus === PyTorchJobState.SUCCEEDED || standardStatus === PyTorchJobState.FAILED) {
-    return standardStatus;
-  }
+  options: {
+    skipHibernationCheck?: boolean;
+  } = {},
+): Promise<{ status: PyTorchJobState; isLoading: boolean; error?: string }> => {
+  const { skipHibernationCheck = false } = options;
 
   try {
-    const workload = await getWorkloadForPyTorchJob(job);
-    if (workload && workload.spec.active === false) {
-      return PyTorchJobState.SUSPENDED;
+    // Get basic status from PyTorch job conditions
+    const basicStatus = getBasicJobStatus(job);
+
+    // Skip hibernation check if disabled or job is in terminal state
+    if (
+      skipHibernationCheck ||
+      basicStatus === PyTorchJobState.SUCCEEDED ||
+      basicStatus === PyTorchJobState.FAILED
+    ) {
+      return { status: basicStatus, isLoading: false };
     }
+
+    // Check workload status for Kueue-enabled jobs and runPolicy for non-Kueue jobs
+    const workload = await getWorkloadForPyTorchJob(job);
+
+    if (workload) {
+      // Kueue-enabled job: Check workload status for queuing, hibernation and preemption
+
+      // Priority 1: Check for paused/hibernated status - workload.spec.active = false
+      if (workload.spec.active === false) {
+        return { status: PyTorchJobState.PAUSED, isLoading: false };
+      }
+
+      // Use correct priority order for workload status determination
+      const conditions = workload.status?.conditions || [];
+
+      // Priority 2: Check for preempted status - Evicted condition with status=True
+      const evictedCondition = conditions.find((c) => c.type === 'Evicted' && c.status === 'True');
+
+      if (evictedCondition) {
+        return { status: PyTorchJobState.PREEMPTED, isLoading: false };
+      }
+
+      // Priority 3: Check for running status - PodsReady condition with status=True
+      const podsReadyCondition = conditions.find(
+        (c) => c.type === 'PodsReady' && c.status === 'True',
+      );
+
+      if (podsReadyCondition) {
+        return { status: PyTorchJobState.RUNNING, isLoading: false };
+      }
+
+      // Priority 4: Check for queued status - Everything else is queued
+      // Also check if the workload conditions list contains type "Admitted"
+      // (if it doesn't, it means it was never in a running state)
+      return { status: PyTorchJobState.QUEUED, isLoading: false };
+    }
+    // Non-Kueue job: Check PyTorchJob runPolicy.suspend for hibernation
+    const isSuspendedByRunPolicy = job.spec.runPolicy?.suspend === true;
+
+    if (isSuspendedByRunPolicy) {
+      return { status: PyTorchJobState.PAUSED, isLoading: false };
+    }
+
+    // Return basic status if no special conditions are met
+    return { status: basicStatus, isLoading: false };
   } catch (error) {
-    console.warn('Failed to check hibernation status for PyTorchJob:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.warn(`Failed to get status for PyTorchJob ${job.metadata.name}:`, errorMessage);
+
+    // Fallback to basic status on error
+    return {
+      status: getBasicJobStatus(job),
+      isLoading: false,
+      error: errorMessage,
+    };
+  }
+};
+
+/**
+ * Get training job status (synchronous version for sorting/filtering)
+ * This version checks basic PyTorch job status and runPolicy.suspend for non-Kueue jobs
+ * @param job - PyTorch job to check status for
+ * @returns Job status including basic hibernation check
+ */
+export const getTrainingJobStatusSync = (job: PyTorchJobKind): PyTorchJobState => {
+  const basicStatus = getBasicJobStatus(job);
+
+  // Skip hibernation check for terminal states
+  if (basicStatus === PyTorchJobState.SUCCEEDED || basicStatus === PyTorchJobState.FAILED) {
+    return basicStatus;
   }
 
-  return standardStatus;
+  // Check for non-Kueue job suspension via runPolicy.suspend
+  const isSuspendedByRunPolicy = job.spec.runPolicy?.suspend === true;
+  if (isSuspendedByRunPolicy) {
+    return PyTorchJobState.PAUSED;
+  }
+
+  return basicStatus;
 };

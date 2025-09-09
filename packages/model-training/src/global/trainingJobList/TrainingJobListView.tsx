@@ -3,7 +3,8 @@ import { getDisplayNameFromK8sResource } from '@odh-dashboard/internal/concepts/
 import TrainingJobTable from './TrainingJobTable';
 import TrainingJobToolbar from './TrainingJobToolbar';
 import { initialTrainingJobFilterData, TrainingJobFilterDataType } from './const';
-import { getJobStatusFromPyTorchJob, getJobStatusWithHibernation } from './utils';
+import { getTrainingJobStatusSync } from './utils';
+import { useTrainingJobStatuses } from './hooks/useTrainingJobStatuses';
 import { PyTorchJobKind } from '../../k8sTypes';
 import { PyTorchJobState } from '../../types';
 
@@ -17,38 +18,9 @@ const TrainingJobListView: React.FC<TrainingJobListViewProps> = ({
   const [filterData, setFilterData] = React.useState<TrainingJobFilterDataType>(
     initialTrainingJobFilterData,
   );
-  const [jobStatuses, setJobStatuses] = React.useState<Map<string, PyTorchJobState>>(new Map());
 
-  // Update job statuses with hibernation check for all jobs
-  React.useEffect(() => {
-    const updateStatuses = async () => {
-      const statusMap = new Map<string, PyTorchJobState>();
-
-      const statusPromises = unfilteredTrainingJobs.map(async (job) => {
-        try {
-          const status = await getJobStatusWithHibernation(job);
-          return { jobId: job.metadata.uid || job.metadata.name, status };
-        } catch {
-          return {
-            jobId: job.metadata.uid || job.metadata.name,
-            status: getJobStatusFromPyTorchJob(job),
-          };
-        }
-      });
-
-      // eslint-disable-next-line no-restricted-properties
-      const results = await Promise.allSettled(statusPromises);
-      results.forEach((result) => {
-        if (result.status === 'fulfilled') {
-          statusMap.set(result.value.jobId, result.value.status);
-        }
-      });
-
-      setJobStatuses(statusMap);
-    };
-
-    updateStatuses();
-  }, [unfilteredTrainingJobs]);
+  // Use the custom hook for cleaner status management
+  const { jobStatuses, updateJobStatus } = useTrainingJobStatuses(unfilteredTrainingJobs);
 
   const onClearFilters = React.useCallback(
     () => setFilterData(initialTrainingJobFilterData),
@@ -56,12 +28,18 @@ const TrainingJobListView: React.FC<TrainingJobListViewProps> = ({
   );
 
   // Handle status updates from hibernation toggle
-  const handleStatusUpdate = React.useCallback((jobId: string, newStatus: PyTorchJobState) => {
-    setJobStatuses((prev) => {
-      const updated = new Map(prev);
-      updated.set(jobId, newStatus);
-      return updated;
-    });
+  const handleStatusUpdate = React.useCallback(
+    (jobId: string, newStatus: PyTorchJobState) => {
+      updateJobStatus(jobId, newStatus);
+    },
+    [updateJobStatus],
+  );
+
+  // Handle job updates from scaling operations
+  const handleJobUpdate = React.useCallback((jobId: string, updatedJob: PyTorchJobKind) => {
+    // This would typically trigger a refresh of the jobs list
+    // In a real implementation, you might call a parent callback or trigger a data refetch
+    console.log('Job updated:', { jobId, updatedJob });
   }, []);
 
   const filteredTrainingJobs = React.useMemo(
@@ -77,7 +55,7 @@ const TrainingJobListView: React.FC<TrainingJobListViewProps> = ({
 
         if (statusFilter) {
           const jobId = job.metadata.uid || job.metadata.name;
-          const jobStatus = jobStatuses.get(jobId) || getJobStatusFromPyTorchJob(job);
+          const jobStatus = jobStatuses.get(jobId) || getTrainingJobStatusSync(job);
           if (!jobStatus.toLowerCase().includes(statusFilter)) {
             return false;
           }
@@ -108,6 +86,7 @@ const TrainingJobListView: React.FC<TrainingJobListViewProps> = ({
       trainingJobs={filteredTrainingJobs}
       jobStatuses={jobStatuses}
       onStatusUpdate={handleStatusUpdate}
+      onJobUpdate={handleJobUpdate}
       onClearFilters={onClearFilters}
       clearFilters={Object.values(filterData).some((value) => !!value) ? onClearFilters : undefined}
       toolbarContent={

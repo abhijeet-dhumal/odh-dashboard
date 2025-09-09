@@ -1,5 +1,5 @@
 import { SortableData } from '@odh-dashboard/internal/components/table/index';
-import { getJobStatusFromPyTorchJob } from './utils';
+import { getTrainingJobStatusSync } from './utils';
 import { PyTorchJobKind } from '../../k8sTypes';
 
 export const columns: SortableData<PyTorchJobKind>[] = [
@@ -20,14 +20,22 @@ export const columns: SortableData<PyTorchJobKind>[] = [
       a.metadata.namespace.localeCompare(b.metadata.namespace),
   },
   {
-    field: 'workerNodes',
-    label: 'Worker nodes',
+    field: 'nodes',
+    label: 'Nodes',
     width: 15,
     sortable: (a: PyTorchJobKind, b: PyTorchJobKind): number => {
-      const aWorker = a.spec.pytorchReplicaSpecs.Worker?.replicas || 0;
-      const bWorker = b.spec.pytorchReplicaSpecs.Worker?.replicas || 0;
+      const aNodes =
+        (a.spec.pytorchReplicaSpecs.Worker?.replicas || 0) +
+        (a.spec.pytorchReplicaSpecs.Master?.replicas || 0);
+      const bNodes =
+        (b.spec.pytorchReplicaSpecs.Worker?.replicas || 0) +
+        (b.spec.pytorchReplicaSpecs.Master?.replicas || 0);
 
-      return aWorker - bWorker;
+      return aNodes - bNodes;
+    },
+    info: {
+      popoverProps: { hasAutoWidth: true },
+      popover: 'Total number of nodes (Worker + Master replicas)',
     },
   },
   {
@@ -57,8 +65,8 @@ export const columns: SortableData<PyTorchJobKind>[] = [
     sortable: (a: PyTorchJobKind, b: PyTorchJobKind): number => {
       // For sorting, we use the sync version for performance
       // The actual hibernation status will be shown in the UI
-      const aState = getJobStatusFromPyTorchJob(a);
-      const bState = getJobStatusFromPyTorchJob(b);
+      const aState = getTrainingJobStatusSync(a);
+      const bState = getTrainingJobStatusSync(b);
       return aState.localeCompare(bState);
     },
   },
