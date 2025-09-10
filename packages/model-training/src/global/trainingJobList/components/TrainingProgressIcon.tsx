@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tooltip } from '@patternfly/react-core';
-import { TrainingJob } from '../utils';
+import { TrainingJob, getTrainingProgress } from '../utils';
 
 type TrainingProgressIconProps = {
   job: TrainingJob;
@@ -26,38 +26,31 @@ const progressAnimationStyles = `
 `;
 
 const TrainingProgressIcon: React.FC<TrainingProgressIconProps> = ({ job }) => {
-  let percentage: string | undefined;
-  let progressionStatus: any;
-
-  // Handle TrainJob with progressionStatus
-  if (job.kind === 'TrainJob' && (job as any).status?.progressionStatus) {
-    progressionStatus = (job as any).status.progressionStatus;
-    percentage = progressionStatus.percentageComplete;
-  }
-  // Handle PyTorchJob with completionPercentage
-  else if (job.kind === 'PyTorchJob' && (job as any).status?.completionPercentage) {
-    percentage = String((job as any).status.completionPercentage);
-    // Create a mock progressionStatus for PyTorchJob
-    progressionStatus = {
-      percentageComplete: percentage,
-      message: 'PyTorch training progress'
-    };
-  }
-  // For completed jobs, show 100%
-  else if ((job as any).status?.conditions?.some((c: any) => c.type === 'Succeeded' && c.status === 'True')) {
-    percentage = '100';
-    progressionStatus = {
-      percentageComplete: '100',
-      message: 'Training completed successfully'
-    };
-  }
+  // Use the utility function to get progress percentage
+  const percentageNum = getTrainingProgress(job);
   
-  // Don't show if no percentage available
-  if (!percentage || percentage === '0' || percentage === '0.0') {
+  // Don't show if no progress available
+  if (percentageNum <= 0) {
     return null;
   }
 
-  const percentageNum = parseFloat(percentage);
+  // Get progression status for detailed tooltip information
+  let progressionStatus: any;
+  if (job.kind === 'TrainJob' && (job as any).status?.progressionStatus) {
+    progressionStatus = (job as any).status.progressionStatus;
+  } else if (job.kind === 'PyTorchJob') {
+    // Create a mock progressionStatus for PyTorchJob
+    progressionStatus = {
+      percentageComplete: String(percentageNum),
+      message: 'PyTorch training progress'
+    };
+  } else {
+    // Fallback for completed jobs
+    progressionStatus = {
+      percentageComplete: String(percentageNum),
+      message: percentageNum >= 100 ? 'Training completed successfully' : 'Training in progress'
+    };
+  }
   
   // Check if job is suspended
   const isSuspended = React.useMemo(() => {
@@ -104,7 +97,7 @@ const TrainingProgressIcon: React.FC<TrainingProgressIconProps> = ({ job }) => {
       {/* Progress Overview */}
       <div style={{ marginBottom: '12px', padding: '8px', backgroundColor: '#2a2a2a', borderRadius: '4px', color: '#ffffff' }}>
         <div style={{ marginBottom: '4px', color: '#ffffff' }}>
-          <strong style={{ color: '#e0e0e0' }}>Progress:</strong> {Math.round(parseFloat(percentage))}%
+          <strong style={{ color: '#e0e0e0' }}>Progress:</strong> {Math.round(percentageNum)}%
           {isSuspended && <span style={{ color: '#ffa500', marginLeft: '8px' }}>(Suspended)</span>}
         </div>
         

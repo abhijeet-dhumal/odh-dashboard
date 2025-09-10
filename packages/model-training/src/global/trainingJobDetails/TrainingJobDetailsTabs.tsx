@@ -33,9 +33,7 @@ const TrainingJobDetailsTabs: React.FC<TrainingJobDetailsTabsProps> = ({ job }) 
         aria-label="Training job logs tab"
         data-testid="training-job-logs-tab"
       >
-        <TabContentBody hasPadding>
-          <TrainingJobLogsTab job={job} />
-        </TabContentBody>
+        <TrainingJobLogsTab job={job} />
       </Tab>
       {/* TODO: Hide details tab for now */}
       {/* <Tab

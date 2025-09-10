@@ -3,6 +3,7 @@ import { Breadcrumb, BreadcrumbItem, Spinner, Bullseye } from '@patternfly/react
 import { Link, useParams } from 'react-router-dom';
 import ApplicationsPage from '@odh-dashboard/internal/pages/ApplicationsPage';
 import TrainingJobDetailsTabs from './TrainingJobDetailsTabs';
+import TrainJobDetailsLayout from './TrainJobDetailsLayout';
 import { useModelTrainingContext } from '../ModelTrainingContext';
 import { PyTorchJobKind, TrainJobKind } from '../../k8sTypes';
 import { TrainingJob } from '../trainingJobList/utils';
@@ -80,13 +81,7 @@ const TrainingJobDetails: React.FC = () => {
       {job.kind === 'PyTorchJob' ? (
         <TrainingJobDetailsTabs job={job as PyTorchJobKind} />
       ) : (
-        <div style={{ padding: '20px', textAlign: 'center' }}>
-          <h2>TrainJob Details</h2>
-          <p>TrainJob detail page is coming soon...</p>
-          <p>Job Name: {job.metadata.name}</p>
-          <p>Namespace: {job.metadata.namespace}</p>
-          <p>Kind: {job.kind}</p>
-        </div>
+        <TrainJobDetailsLayout job={job as TrainJobKind} />
       )}
     </ApplicationsPage>
   );

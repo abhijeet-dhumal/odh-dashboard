@@ -9,7 +9,7 @@ import {
   ClockIcon,
 } from '@patternfly/react-icons';
 import { LabelProps } from '@patternfly/react-core';
-import { PyTorchJobKind, TrainJobKind } from '../../k8sTypes';
+import { PyTorchJobKind, TrainJobKind, RayJobKind } from '../../k8sTypes';
 import { PyTorchJobState, TrainJobState, TrainingJobState, TrainingJobType } from '../../types';
 import { getWorkloadForPyTorchJob, getWorkloadForTrainJob } from '../../api';
 
@@ -80,6 +80,12 @@ export const getStatusInfo = (
         label: 'Suspended',
         color: 'grey',
         IconComponent: PauseIcon,
+      };
+    case TrainJobState.RESUMED:
+      return {
+        label: 'Resumed',
+        color: 'purple',
+        IconComponent: PlayIcon,
       };
     case PyTorchJobState.PREEMPTED:
       return {
@@ -244,11 +250,67 @@ export const getTrainingJobStatusSync = (job: PyTorchJobKind): PyTorchJobState =
 };
 
 /**
+ * Extract training progress percentage from job (independent of status)
+ */
+export const getTrainingProgress = (job: TrainingJob): number => {
+  // TrainJob with progressionStatus (most reliable)
+  if (job.kind === 'TrainJob' && (job as any).status?.progressionStatus?.percentageComplete) {
+    const percentage = parseFloat((job as any).status.progressionStatus.percentageComplete);
+    return isNaN(percentage) ? 0 : Math.max(0, Math.min(100, percentage));
+  }
+  
+  // PyTorchJob with completionPercentage
+  if (job.kind === 'PyTorchJob' && (job as any).status?.completionPercentage) {
+    const percentage = (job as any).status.completionPercentage;
+    const num = typeof percentage === 'number' ? percentage : parseFloat(String(percentage));
+    return isNaN(num) ? 0 : Math.max(0, Math.min(100, num));
+  }
+  
+  // For completed jobs, return 100%
+  if ((job as any).status?.conditions?.some((c: any) => 
+    (c.type === 'Succeeded' || c.type === 'Complete') && c.status === 'True')) {
+    return 100;
+  }
+  
+  return 0;
+};
+
+/**
  * Get basic TrainJob status from conditions (synchronous)
  */
 const getBasicTrainJobStatus = (job: TrainJobKind): TrainJobState => {
-  if (!job.status?.conditions) {
-    return TrainJobState.UNKNOWN;
+  // Check if job has any status at all
+  if (!job.status) {
+    // No status yet - job is likely just created/pending
+    return TrainJobState.PENDING;
+  }
+
+  // Check conditions first
+  if (!job.status.conditions) {
+    // No conditions yet, but check other status indicators
+    
+    // If has progression status, it's likely running
+    if (job.status.progressionStatus?.percentageComplete) {
+      return TrainJobState.RUNNING;
+    }
+    
+    // Check if there are active jobs in jobsStatus (early training phase)
+    if (job.status.jobsStatus?.some((jobStatus) => jobStatus.active > 0)) {
+      return TrainJobState.RUNNING;
+    }
+    
+    // Check if jobs are starting up (ready > 0 but not succeeded yet)
+    if (job.status.jobsStatus?.some((jobStatus) => jobStatus.ready > 0)) {
+      return TrainJobState.RUNNING;
+    }
+    
+    // If jobsStatus exists but no active jobs, likely pending
+    if (job.status.jobsStatus && job.status.jobsStatus.length > 0) {
+      return TrainJobState.PENDING;
+    }
+    
+    // Fallback: if job has status but no conditions/progression, it's likely starting up
+    return TrainJobState.PENDING;
   }
 
   // Sort conditions by lastTransitionTime (most recent first)
@@ -256,27 +318,92 @@ const getBasicTrainJobStatus = (job: TrainJobKind): TrainJobState => {
     (b.lastTransitionTime || '').localeCompare(a.lastTransitionTime || ''),
   );
 
-  // Find the most recent condition with status='True' (current active state)
-  const currentCondition = sortedConditions.find((condition) => condition.status === 'True');
+  // Check for specific conditions
+  const completeCondition = sortedConditions.find(c => c.type === 'Complete' && c.status === 'True');
+  const failedCondition = sortedConditions.find(c => c.type === 'Failed' && c.status === 'True');
+  const suspendedCondition = sortedConditions.find(c => c.type === 'Suspended' && c.status === 'True');
+  const resumedCondition = sortedConditions.find(c => c.type === 'Suspended' && c.status === 'False' && c.reason === 'Resumed');
 
-  if (!currentCondition) {
-    return TrainJobState.UNKNOWN;
+  // Terminal states take priority
+  if (completeCondition) {
+    return TrainJobState.COMPLETE;
   }
-
-  switch (currentCondition.type) {
-    case 'Complete':
+  if (failedCondition) {
+    return TrainJobState.FAILED;
+  }
+  
+  // Check if training is actually complete (100% progress) even if suspended
+  if (job.status.progressionStatus?.percentageComplete) {
+    const percentage = parseFloat(job.status.progressionStatus.percentageComplete);
+    if (percentage >= 100) {
       return TrainJobState.COMPLETE;
-    case 'Failed':
-      return TrainJobState.FAILED;
-    case 'Suspended':
-      return TrainJobState.SUSPENDED;
-    default:
-      // If no specific condition is found, check if there are active jobs
-      if (job.status.jobsStatus?.some((jobStatus) => jobStatus.active > 0)) {
+    }
+  }
+  
+  if (suspendedCondition) {
+    return TrainJobState.SUSPENDED;
+  }
+  
+  // Check if job was recently resumed
+  if (resumedCondition) {
+    // If resumed and has active progress, show as running
+    if (job.status.progressionStatus?.percentageComplete) {
+      const percentage = parseFloat(job.status.progressionStatus.percentageComplete);
+      if (percentage > 0 && percentage < 100) {
         return TrainJobState.RUNNING;
       }
-      return TrainJobState.PENDING;
+    }
+    return TrainJobState.RESUMED;
   }
+
+  // Check if job has active training progress
+  if (job.status.progressionStatus?.percentageComplete) {
+    const percentage = parseFloat(job.status.progressionStatus.percentageComplete);
+    if (percentage > 0) {
+      return TrainJobState.RUNNING;
+    }
+  }
+
+  // Check jobsStatus for various states
+  if (job.status.jobsStatus && job.status.jobsStatus.length > 0) {
+    // Check if there are active jobs (training is running)
+    if (job.status.jobsStatus.some((jobStatus) => jobStatus.active > 0)) {
+      return TrainJobState.RUNNING;
+    }
+
+    // Check if jobs are ready but not yet active (starting up)
+    if (job.status.jobsStatus.some((jobStatus) => jobStatus.ready > 0)) {
+      return TrainJobState.RUNNING;
+    }
+
+    // Check if all jobs are succeeded
+    if (job.status.jobsStatus.every((jobStatus) => jobStatus.succeeded > 0 && jobStatus.active === 0)) {
+      return TrainJobState.COMPLETE;
+    }
+
+    // Check if any jobs failed
+    if (job.status.jobsStatus.some((jobStatus) => jobStatus.failed > 0)) {
+      return TrainJobState.FAILED;
+    }
+
+    // If jobsStatus exists but no clear state, likely pending/starting
+    return TrainJobState.PENDING;
+  }
+
+  // If we reach here, the job likely doesn't have enough status information yet
+  // Check if the job was recently created (no meaningful status yet)
+  if (job.metadata.creationTimestamp) {
+    const createdTime = new Date(job.metadata.creationTimestamp);
+    const now = new Date();
+    const timeDiff = now.getTime() - createdTime.getTime();
+    
+    // If created less than 2 minutes ago and no status, likely pending
+    if (timeDiff < 2 * 60 * 1000) {
+      return TrainJobState.PENDING;
+    }
+  }
+
+  return TrainJobState.UNKNOWN;
 };
 
 /**
@@ -293,10 +420,23 @@ export const getTrainJobStatusWithHibernation = async (
     return standardStatus;
   }
 
+  // If job is already detected as resumed or running, return that status
+  if (standardStatus === TrainJobState.RESUMED || standardStatus === TrainJobState.RUNNING) {
+    return standardStatus;
+  }
+
   try {
     const workload = await getWorkloadForTrainJob(job);
-    if (workload && workload.spec.active === false) {
-      return TrainJobState.SUSPENDED;
+    if (workload) {
+      // Kueue-enabled job: Check workload hibernation
+      if (workload.spec.active === false) {
+        return TrainJobState.SUSPENDED;
+      }
+    } else {
+      // Non-Kueue job: Check TrainJob spec.suspend
+      if (job.spec.suspend === true) {
+        return TrainJobState.SUSPENDED;
+      }
     }
   } catch (error) {
     console.warn('Failed to check hibernation status for TrainJob:', error);
@@ -306,17 +446,42 @@ export const getTrainJobStatusWithHibernation = async (
 };
 
 // Generic functions that work with both job types
-export type TrainingJob = PyTorchJobKind | TrainJobKind;
+export type TrainingJob = PyTorchJobKind | TrainJobKind | RayJobKind;
 
 export const getJobType = (job: TrainingJob): TrainingJobType => {
-  return job.kind === 'TrainJob' ? TrainingJobType.TRAIN : TrainingJobType.PYTORCH;
+  if (job.kind === 'TrainJob') return TrainingJobType.TRAIN;
+  if (job.kind === 'RayJob') return TrainingJobType.RAY;
+  return TrainingJobType.PYTORCH;
 };
 
 export const getJobStatus = (job: TrainingJob): TrainingJobState => {
   if (job.kind === 'TrainJob') {
     return getBasicTrainJobStatus(job as TrainJobKind);
   }
+  if (job.kind === 'RayJob') {
+    return getRayJobStatus(job as RayJobKind);
+  }
   return getTrainingJobStatusSync(job as PyTorchJobKind);
+};
+
+// Helper function to get RayJob status
+const getRayJobStatus = (job: RayJobKind): TrainingJobState => {
+  const status = job.status?.jobStatus;
+  switch (status) {
+    case 'NEW':
+    case 'PENDING':
+      return 'Pending' as TrainingJobState;
+    case 'RUNNING':
+      return 'Running' as TrainingJobState;
+    case 'SUCCEEDED':
+      return 'Succeeded' as TrainingJobState;
+    case 'FAILED':
+      return 'Failed' as TrainingJobState;
+    case 'STOPPED':
+      return 'Suspended' as TrainingJobState;
+    default:
+      return 'Unknown' as TrainingJobState;
+  }
 };
 
 export const getJobStatusWithHibernationGeneric = async (job: TrainingJob): Promise<TrainingJobState> => {

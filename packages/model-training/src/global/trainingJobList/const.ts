@@ -1,5 +1,5 @@
 import { SortableData } from '@odh-dashboard/internal/components/table/index';
-import { getJobStatus, TrainingJob } from './utils';
+import { getJobStatus, getTrainingProgress, TrainingJob } from './utils';
 
 export const columns: SortableData<TrainingJob>[] = [
   {
@@ -23,14 +23,22 @@ export const columns: SortableData<TrainingJob>[] = [
     label: 'Worker nodes',
     width: 15,
     sortable: (a: TrainingJob, b: TrainingJob): number => {
-      const aWorker = a.kind === 'PyTorchJob' 
-        ? (a as any).spec.pytorchReplicaSpecs.Worker?.replicas || 0
-        : (a as any).spec.trainer?.numNodes || 1;
-      const bWorker = b.kind === 'PyTorchJob' 
-        ? (b as any).spec.pytorchReplicaSpecs.Worker?.replicas || 0
-        : (b as any).spec.trainer?.numNodes || 1;
+      const getWorkerCount = (job: TrainingJob): number => {
+        if (job.kind === 'PyTorchJob') {
+          return (job as any).spec.pytorchReplicaSpecs.Worker?.replicas || 0;
+        } else if (job.kind === 'RayJob') {
+          const rayJob = job as any;
+          const headNodes = rayJob.spec.rayClusterSpec.headGroupSpec?.replicas || 1;
+          const workerNodes = rayJob.spec.rayClusterSpec.workerGroupSpecs?.reduce(
+            (total: number, group: any) => total + (group.replicas || 0), 0
+          ) || 0;
+          return headNodes + workerNodes;
+        } else {
+          return (job as any).spec.trainer?.numNodes || 1;
+        }
+      };
 
-      return aWorker - bWorker;
+      return getWorkerCount(a) - getWorkerCount(b);
     },
   },
   {
@@ -70,22 +78,8 @@ export const columns: SortableData<TrainingJob>[] = [
     label: 'Progress',
     width: 10,
     sortable: (a: TrainingJob, b: TrainingJob): number => {
-      // Sort by completion percentage
-      const getPercentage = (job: TrainingJob): number => {
-        if (job.kind === 'TrainJob' && (job as any).status?.progressionStatus?.percentageComplete) {
-          return parseFloat((job as any).status.progressionStatus.percentageComplete);
-        }
-        if (job.kind === 'PyTorchJob' && (job as any).status?.completionPercentage) {
-          return (job as any).status.completionPercentage;
-        }
-        // For completed jobs, return 100%
-        if ((job as any).status?.conditions?.some((c: any) => c.type === 'Succeeded' && c.status === 'True')) {
-          return 100;
-        }
-        return 0;
-      };
-      
-      return getPercentage(a) - getPercentage(b);
+      // Use the dedicated progress utility function
+      return getTrainingProgress(a) - getTrainingProgress(b);
     },
   },
   {

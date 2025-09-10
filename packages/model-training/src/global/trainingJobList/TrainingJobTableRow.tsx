@@ -2,11 +2,8 @@ import * as React from 'react';
 import { Tr, Td, ActionsColumn } from '@patternfly/react-table';
 import {
   Timestamp,
-  Flex,
-  FlexItem,
   TimestampTooltipVariant,
 } from '@patternfly/react-core';
-import { CubesIcon } from '@patternfly/react-icons';
 import { Link } from 'react-router-dom';
 import ResourceNameTooltip from '@odh-dashboard/internal/components/ResourceNameTooltip';
 import { getDisplayNameFromK8sResource } from '@odh-dashboard/internal/concepts/k8s/utils';
@@ -17,8 +14,9 @@ import TrainingJobClusterQueue from './TrainingJobClusterQueue';
 import HibernationToggleModal from './HibernationToggleModal';
 import TrainingJobStatus from './components/TrainingJobStatus';
 import TrainingProgressIcon from './components/TrainingProgressIcon';
+import WorkerNodesIcon from './components/WorkerNodesIcon';
 import { TrainingJobState } from '../../types';
-import { togglePyTorchJobHibernation } from '../../api';
+import { togglePyTorchJobHibernation, toggleTrainJobHibernation } from '../../api';
 
 type TrainingJobTableRowProps = {
   job: TrainingJob;
@@ -37,9 +35,6 @@ const TrainingJobTableRow: React.FC<TrainingJobTableRowProps> = ({
   const [isToggling, setIsToggling] = React.useState(false);
 
   const displayName = getDisplayNameFromK8sResource(job);
-  const workerReplicas = job.kind === 'PyTorchJob' 
-    ? (job as any).spec.pytorchReplicaSpecs.Worker?.replicas || 0
-    : (job as any).spec.trainer?.numNodes || 1;
   const localQueueName = job.metadata.labels?.['kueue.x-k8s.io/queue-name'];
 
   const status = jobStatus || getJobStatus(job);
@@ -47,23 +42,30 @@ const TrainingJobTableRow: React.FC<TrainingJobTableRowProps> = ({
   const isTerminalState = status === 'Succeeded' || status === 'Complete' || status === 'Failed';
 
   const handleHibernationToggle = async () => {
+    console.log('🎯 Resume/Suspend button clicked for:', job.kind, job.metadata.name);
     setIsToggling(true);
     try {
-      // Only PyTorchJobs support hibernation for now
+      let result;
+      
       if (job.kind === 'PyTorchJob') {
-        const result = await togglePyTorchJobHibernation(job as any);
-        if (result.success) {
-          // Update status optimistically
-          const newStatus = isSuspended ? 'Running' : 'Suspended';
-          const jobId = job.metadata.uid || job.metadata.name;
-          onStatusUpdate?.(jobId, newStatus as TrainingJobState);
-        } else {
-          console.error('Failed to toggle hibernation:', result.error);
-          // TODO: Show error notification
-        }
+        console.log('📞 Calling togglePyTorchJobHibernation');
+        result = await togglePyTorchJobHibernation(job as any);
+      } else if (job.kind === 'TrainJob') {
+        console.log('📞 Calling toggleTrainJobHibernation');
+        result = await toggleTrainJobHibernation(job as any);
       } else {
-        console.warn('Hibernation not supported for TrainJob');
-        // TODO: Show warning notification
+        console.warn(`Hibernation not supported for ${job.kind}`);
+        return;
+      }
+
+      if (result.success) {
+        // Update status optimistically
+        const newStatus = isSuspended ? 'Running' : 'Suspended';
+        const jobId = job.metadata.uid || job.metadata.name;
+        onStatusUpdate?.(jobId, newStatus as TrainingJobState);
+      } else {
+        console.error('Failed to toggle hibernation:', result.error);
+        // TODO: Show error notification
       }
     } catch (error) {
       console.error('Error toggling hibernation:', error);
@@ -79,8 +81,8 @@ const TrainingJobTableRow: React.FC<TrainingJobTableRowProps> = ({
   const actions = React.useMemo(() => {
     const items = [];
 
-    // Add hibernation toggle action (only for PyTorchJobs and non-terminal states)
-    if (!isTerminalState && job.kind === 'PyTorchJob') {
+    // Add hibernation toggle action (for PyTorchJobs and TrainJobs in non-terminal states)
+    if (!isTerminalState && (job.kind === 'PyTorchJob' || job.kind === 'TrainJob')) {
       items.push({
         title: isSuspended ? 'Resume' : 'Suspend',
         onClick: () => setHibernationModalOpen(true),
@@ -112,15 +114,7 @@ const TrainingJobTableRow: React.FC<TrainingJobTableRowProps> = ({
         </Td>
 
         <Td dataLabel="Worker nodes">
-          <Flex
-            alignItems={{ default: 'alignItemsCenter' }}
-            spaceItems={{ default: 'spaceItemsXs' }}
-          >
-            <FlexItem>
-              <CubesIcon />
-            </FlexItem>
-            <FlexItem>{workerReplicas}</FlexItem>
-          </Flex>
+          <WorkerNodesIcon job={job} />
         </Td>
         <Td dataLabel="Cluster queue">
           <TrainingJobClusterQueue

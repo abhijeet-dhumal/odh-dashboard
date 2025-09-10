@@ -1,5 +1,5 @@
 import React from 'react';
-import { Stack, StackItem } from '@patternfly/react-core';
+import { Stack, StackItem, PageSection } from '@patternfly/react-core';
 import DashboardLogViewer from '@odh-dashboard/internal/concepts/dashboard/DashboardLogViewer';
 import { LOG_TAIL_LINES } from '@odh-dashboard/internal/concepts/pipelines/content/pipelinesDetails/pipelineRun/runLogs/const';
 import useDebounceCallback from '@odh-dashboard/internal/utilities/useDebounceCallback';
@@ -117,74 +117,76 @@ const TrainingJobLogsTab: React.FC<TrainingJobLogsTabProps> = ({ job }) => {
   const rawLogsLink = `${location.origin}/api/k8s/api/v1/namespaces/${namespace}/pods/${podName}/log?container=${containerName}`;
 
   return (
-    <Stack hasGutter>
-      <StackItem>
-        {!podStatus?.podInitializing && (
-          <TrainingJobLogsTabStatus
-            error={error}
-            podError={podError}
-            podName={podName}
-            podStatus={podStatus}
-            loaded={loaded}
-            isFailedJob={isFailedJob}
-            isLogsAvailable={hasLogs}
-            onDownload={onDownload}
-            onDownloadAll={onDownloadAll}
-            rawLogsLink={rawLogsLink}
-          />
-        )}
-      </StackItem>
-      <StackItem isFilled id="dashboard-logviewer" style={{ position: 'relative' }}>
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            top: 0,
-            bottom: 0,
-            height: '50vh',
-          }}
-          ref={logsTabRef}
-        >
-          <DashboardLogViewer
-            hasLineNumbers
-            data={data}
-            logViewerRef={logViewerRef}
-            toolbar={
-              <TrainingJobLogsToolbar
-                isPaused={isPaused}
-                setIsPaused={setIsPaused}
-                podContainers={podContainers}
-                selectedContainer={selectedContainer}
-                defaultContainerName={defaultContainerName}
-                setSelectedContainer={setSelectedContainer}
-                open={open}
-                setOpen={setOpen}
-                showSearchbar={showSearchbar}
-                setShowSearchbar={setShowSearchbar}
-                isKebabOpen={isKebabOpen}
-                setIsKebabOpen={setIsKebabOpen}
-                isTextWrapped={isTextWrapped}
-                setIsTextWrapped={setIsTextWrapped}
-                isFullScreen={isFullScreen}
-                onExpandClick={handleExpandClick}
-                downloading={downloading}
-                onDownload={onDownload}
-                onDownloadAll={onDownloadAll}
-                rawLogsLink={rawLogsLink}
-                hasLogs={hasLogs}
-              />
-            }
-            footer={false}
-            onScroll={() => {
-              // Placeholder for future scroll handling
+    <PageSection hasBodyWrapper={false} isFilled>
+      <Stack hasGutter>
+        <StackItem>
+          {!podStatus?.podInitializing && (
+            <TrainingJobLogsTabStatus
+              error={error}
+              podError={podError}
+              podName={podName}
+              podStatus={podStatus}
+              loaded={loaded}
+              isFailedJob={isFailedJob}
+              isLogsAvailable={hasLogs}
+              onDownload={onDownload}
+              onDownloadAll={onDownloadAll}
+              rawLogsLink={rawLogsLink}
+            />
+          )}
+        </StackItem>
+        <StackItem isFilled id="dashboard-logviewer" style={{ position: 'relative' }}>
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: 0,
+              bottom: 0,
+              height: '50vh',
             }}
-            height="100%"
-            isTextWrapped={isTextWrapped}
-          />
-        </div>
-      </StackItem>
-    </Stack>
+            ref={logsTabRef}
+          >
+            <DashboardLogViewer
+              hasLineNumbers
+              data={data}
+              logViewerRef={logViewerRef}
+              toolbar={
+                <TrainingJobLogsToolbar
+                  isPaused={isPaused}
+                  setIsPaused={setIsPaused}
+                  podContainers={podContainers}
+                  selectedContainer={selectedContainer}
+                  defaultContainerName={defaultContainerName}
+                  setSelectedContainer={setSelectedContainer}
+                  open={open}
+                  setOpen={setOpen}
+                  showSearchbar={showSearchbar}
+                  setShowSearchbar={setShowSearchbar}
+                  isKebabOpen={isKebabOpen}
+                  setIsKebabOpen={setIsKebabOpen}
+                  isTextWrapped={isTextWrapped}
+                  setIsTextWrapped={setIsTextWrapped}
+                  isFullScreen={isFullScreen}
+                  onExpandClick={handleExpandClick}
+                  downloading={downloading}
+                  onDownload={onDownload}
+                  onDownloadAll={onDownloadAll}
+                  rawLogsLink={rawLogsLink}
+                  hasLogs={hasLogs}
+                />
+              }
+              footer={false}
+              onScroll={() => {
+                // Placeholder for future scroll handling
+              }}
+              height="100%"
+              isTextWrapped={isTextWrapped}
+            />
+          </div>
+        </StackItem>
+      </Stack>
+    </PageSection>
   );
 };
 

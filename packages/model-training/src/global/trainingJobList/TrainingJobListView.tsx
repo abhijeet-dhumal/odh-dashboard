@@ -19,34 +19,63 @@ const TrainingJobListView: React.FC<TrainingJobListViewProps> = ({
   const [jobStatuses, setJobStatuses] = React.useState<Map<string, TrainingJobState>>(new Map());
 
   // Update job statuses with hibernation check for all jobs
-  React.useEffect(() => {
-    const updateStatuses = async () => {
-      const statusMap = new Map<string, TrainingJobState>();
-
-      const statusPromises = unfilteredTrainingJobs.map(async (job) => {
-        try {
-          const status = await getJobStatusWithHibernationGeneric(job);
-          return { jobId: job.metadata.uid || job.metadata.name, status };
-        } catch {
-          return {
-            jobId: job.metadata.uid || job.metadata.name,
-            status: getJobStatus(job),
-          };
-        }
-      });
-
-      const results = await Promise.all(statusPromises);
-      results.forEach(({ jobId, status }) => {
-        statusMap.set(jobId, status);
-      });
-
-      setJobStatuses(statusMap);
-    };
-
-    if (unfilteredTrainingJobs.length > 0) {
-      updateStatuses();
+  const updateStatuses = React.useCallback(async () => {
+    if (unfilteredTrainingJobs.length === 0) {
+      setJobStatuses(new Map());
+      return;
     }
+
+    const statusMap = new Map<string, TrainingJobState>();
+
+    const statusPromises = unfilteredTrainingJobs.map(async (job) => {
+      try {
+        const status = await getJobStatusWithHibernationGeneric(job);
+        return { jobId: job.metadata.uid || job.metadata.name, status };
+      } catch {
+        return {
+          jobId: job.metadata.uid || job.metadata.name,
+          status: getJobStatus(job),
+        };
+      }
+    });
+
+    const results = await Promise.all(statusPromises);
+    results.forEach(({ jobId, status }) => {
+      statusMap.set(jobId, status);
+    });
+
+    setJobStatuses(statusMap);
   }, [unfilteredTrainingJobs]);
+
+  // Initial status update when jobs change
+  React.useEffect(() => {
+    updateStatuses();
+  }, [updateStatuses]);
+
+  // Periodic status refresh for active jobs
+  React.useEffect(() => {
+    // Only set up polling if there are jobs
+    if (unfilteredTrainingJobs.length === 0) {
+      return;
+    }
+
+    // Check if there are any non-terminal jobs that need status updates
+    const hasActiveJobs = unfilteredTrainingJobs.some((job) => {
+      const currentStatus = jobStatuses.get(job.metadata.uid || job.metadata.name);
+      return currentStatus && !['Complete', 'Succeeded', 'Failed', 'Suspended'].includes(currentStatus);
+    });
+
+    if (!hasActiveJobs) {
+      return;
+    }
+
+    // Refresh status every 10 seconds for active jobs
+    const interval = setInterval(() => {
+      updateStatuses();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [unfilteredTrainingJobs, jobStatuses, updateStatuses]);
 
   const onClearFilters = React.useCallback(
     () => setFilterData(initialTrainingJobFilterData),

@@ -1,5 +1,12 @@
 import React from 'react';
-import { EmptyStateBody, EmptyStateVariant, EmptyState } from '@patternfly/react-core';
+import { 
+  EmptyStateBody, 
+  EmptyStateVariant, 
+  EmptyState,
+  Tabs,
+  Tab,
+  TabTitleText 
+} from '@patternfly/react-core';
 import { SearchIcon } from '@patternfly/react-icons';
 import { useNavigate } from 'react-router-dom';
 import ApplicationsPage from '@odh-dashboard/internal/pages/ApplicationsPage';
@@ -12,22 +19,24 @@ import ModelTrainingProjectSelector from '../components/ModelTrainingProjectSele
 
 const title = 'Model training';
 const description =
-  'Select a project to view its training jobs (PyTorch & TrainJobs). Monitor training progress and manage distributed training workloads across your data science projects.';
+  'Monitor training progress and manage distributed training workloads across your data science projects. Select a project to view its TrainJobs. ';
 
 const ModelTraining = (): React.ReactElement => {
   const navigate = useNavigate();
-  const { pytorchJobs, trainJobs, project, preferredProject, projects } =
+  const { pytorchJobs, trainJobs, rayJobs, project, preferredProject, projects } =
     React.useContext(ModelTrainingContext);
   const [pytorchJobData, pytorchJobLoaded, pytorchJobLoadError] = pytorchJobs;
   const [trainJobData, trainJobLoaded, trainJobLoadError] = trainJobs;
+  const [rayJobData, rayJobLoaded, rayJobLoadError] = rayJobs;
+  const [activeTab, setActiveTab] = React.useState<string | number>('trainjobs');
 
-  // Combine both job types
+  // Combine all job types for backward compatibility
   const allJobs = React.useMemo(() => {
-    return [...pytorchJobData, ...trainJobData];
-  }, [pytorchJobData, trainJobData]);
+    return [...trainJobData, ...rayJobData];
+  }, [trainJobData, rayJobData]);
 
-  const allJobsLoaded = pytorchJobLoaded && trainJobLoaded;
-  const allJobsLoadError = pytorchJobLoadError || trainJobLoadError;
+  const allJobsLoaded = trainJobLoaded && rayJobLoaded;
+  const allJobsLoadError = trainJobLoadError || rayJobLoadError;
 
   const emptyState = (
     <EmptyState
@@ -70,7 +79,25 @@ const ModelTraining = (): React.ReactElement => {
         )
       }
     >
-      <TrainingJobListView trainingJobs={allJobs as any} />
+      <div style={{ marginBottom: 'var(--pf-v5-global--spacer--xl)' }}>
+        <Tabs
+          activeKey={activeTab}
+          onSelect={(event, tabIndex) => setActiveTab(tabIndex)}
+          isBox={false}
+          hasNoBorderBottom
+        >
+          <Tab eventKey="trainjobs" title={<TabTitleText>TrainJobs ({trainJobData.length})</TabTitleText>} />
+          <Tab eventKey="rayjobs" title={<TabTitleText>RayJobs ({rayJobData.length})</TabTitleText>} />
+        </Tabs>
+      </div>
+      <div>
+        {activeTab === 'trainjobs' && (
+          <TrainingJobListView trainingJobs={trainJobData as any} />
+        )}
+        {activeTab === 'rayjobs' && (
+          <TrainingJobListView trainingJobs={rayJobData as any} />
+        )}
+      </div>
     </ApplicationsPage>
   );
 };
