@@ -1,10 +1,10 @@
 import React from 'react';
 import DeleteModal from '@odh-dashboard/internal/pages/projects/components/DeleteModal';
-import { PyTorchJobKind } from '../../k8sTypes';
-import { deletePyTorchJob } from '../../api';
+import { TrainingJob } from './utils';
+import { deletePyTorchJob, deleteTrainJob } from '../../api';
 
 export type DeleteTrainingJobModalProps = {
-  trainingJob: PyTorchJobKind;
+  trainingJob: TrainingJob;
   onClose: (deleted: boolean) => void;
 };
 
@@ -30,7 +30,8 @@ const DeleteTrainingJobModal: React.FC<DeleteTrainingJobModalProps> = ({
       submitButtonLabel="Delete training job"
       onDelete={() => {
         setIsDeleting(true);
-        deletePyTorchJob(trainingJob.metadata.name, trainingJob.metadata.namespace)
+        const deleteFunction = trainingJob.kind === 'PyTorchJob' ? deletePyTorchJob : deleteTrainJob;
+        deleteFunction(trainingJob.metadata.name, trainingJob.metadata.namespace)
           .then(() => {
             onBeforeClose(true);
           })

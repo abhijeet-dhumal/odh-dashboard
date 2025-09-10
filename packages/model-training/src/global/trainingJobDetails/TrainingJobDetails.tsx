@@ -4,20 +4,30 @@ import { Link, useParams } from 'react-router-dom';
 import ApplicationsPage from '@odh-dashboard/internal/pages/ApplicationsPage';
 import TrainingJobDetailsTabs from './TrainingJobDetailsTabs';
 import { useModelTrainingContext } from '../ModelTrainingContext';
-import { PyTorchJobKind } from '../../k8sTypes';
+import { PyTorchJobKind, TrainJobKind } from '../../k8sTypes';
+import { TrainingJob } from '../trainingJobList/utils';
 
 const TrainingJobDetails: React.FC = () => {
   const { namespace, jobName } = useParams<{ namespace: string; jobName: string }>();
-  const { pytorchJobs } = useModelTrainingContext();
+  const { pytorchJobs, trainJobs } = useModelTrainingContext();
   const [pytorchJobData, pytorchJobLoaded, pytorchJobLoadError] = pytorchJobs;
+  const [trainJobData, trainJobLoaded, trainJobLoadError] = trainJobs;
 
-  // Find the specific job
-  const job = React.useMemo(
-    () => pytorchJobData.find((j: PyTorchJobKind) => j.metadata.name === jobName),
-    [pytorchJobData, jobName],
-  );
+  // Find the specific job from both PyTorchJobs and TrainJobs
+  const job: TrainingJob | undefined = React.useMemo(() => {
+    // First check PyTorchJobs
+    const pytorchJob = pytorchJobData.find((j: PyTorchJobKind) => j.metadata.name === jobName);
+    if (pytorchJob) return pytorchJob;
+    
+    // Then check TrainJobs
+    const trainJob = trainJobData.find((j: TrainJobKind) => j.metadata.name === jobName);
+    return trainJob;
+  }, [pytorchJobData, trainJobData, jobName]);
 
-  if (!pytorchJobLoaded) {
+  const allJobsLoaded = pytorchJobLoaded && trainJobLoaded;
+  const loadError = pytorchJobLoadError || trainJobLoadError;
+
+  if (!allJobsLoaded) {
     return (
       <Bullseye>
         <Spinner />
@@ -39,8 +49,8 @@ const TrainingJobDetails: React.FC = () => {
           </div>
         }
         title="Training job not found"
-        loaded={pytorchJobLoaded}
-        loadError={pytorchJobLoadError}
+        loaded={allJobsLoaded}
+        loadError={loadError}
       />
     );
   }
@@ -48,13 +58,15 @@ const TrainingJobDetails: React.FC = () => {
   const displayName =
     job.metadata.annotations?.['opendatahub.io/display-name'] || job.metadata.name;
 
+  const jobTypeDescription = job.kind === 'PyTorchJob' ? 'PyTorch' : 'TrainJob';
+
   return (
     <ApplicationsPage
       empty={false}
       title={displayName}
-      description={`PyTorch training job in ${namespace ?? ''}`}
-      loadError={pytorchJobLoadError}
-      loaded={pytorchJobLoaded}
+      description={`${jobTypeDescription} training job in ${namespace ?? ''}`}
+      loadError={loadError}
+      loaded={allJobsLoaded}
       provideChildrenPadding
       breadcrumb={
         <Breadcrumb>
@@ -65,7 +77,17 @@ const TrainingJobDetails: React.FC = () => {
         </Breadcrumb>
       }
     >
-      <TrainingJobDetailsTabs job={job} />
+      {job.kind === 'PyTorchJob' ? (
+        <TrainingJobDetailsTabs job={job as PyTorchJobKind} />
+      ) : (
+        <div style={{ padding: '20px', textAlign: 'center' }}>
+          <h2>TrainJob Details</h2>
+          <p>TrainJob detail page is coming soon...</p>
+          <p>Job Name: {job.metadata.name}</p>
+          <p>Namespace: {job.metadata.namespace}</p>
+          <p>Kind: {job.kind}</p>
+        </div>
+      )}
     </ApplicationsPage>
   );
 };

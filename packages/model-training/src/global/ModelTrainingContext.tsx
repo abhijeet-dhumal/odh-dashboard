@@ -3,11 +3,12 @@ import { ProjectKind } from '@odh-dashboard/internal/k8sTypes';
 import { DEFAULT_LIST_WATCH_RESULT } from '@odh-dashboard/internal/utilities/const';
 import { ProjectsContext, byName } from '@odh-dashboard/internal/concepts/projects/ProjectsContext';
 import { CustomWatchK8sResult } from '@odh-dashboard/internal/types';
-import { usePyTorchJobs } from '../api';
-import { PyTorchJobKind } from '../k8sTypes';
+import { usePyTorchJobs, useTrainJobs } from '../api';
+import { PyTorchJobKind, TrainJobKind } from '../k8sTypes';
 
 type ModelTrainingContextType = {
   pytorchJobs: CustomWatchK8sResult<PyTorchJobKind[]>;
+  trainJobs: CustomWatchK8sResult<TrainJobKind[]>;
   project?: ProjectKind | null;
   preferredProject?: ProjectKind | null;
   projects?: ProjectKind[] | null;
@@ -20,6 +21,7 @@ type ModelTrainingContextProviderProps = {
 
 export const ModelTrainingContext = React.createContext<ModelTrainingContextType>({
   pytorchJobs: DEFAULT_LIST_WATCH_RESULT,
+  trainJobs: DEFAULT_LIST_WATCH_RESULT,
   project: null,
   preferredProject: null,
   projects: null,
@@ -33,15 +35,17 @@ export const ModelTrainingContextProvider: React.FC<ModelTrainingContextProvider
   const project = projects.find(byName(namespace)) ?? null;
 
   const pytorchJobs = usePyTorchJobs(namespace ?? '');
+  const trainJobs = useTrainJobs(namespace ?? '');
 
   const contextValue = React.useMemo(
     () => ({
       pytorchJobs,
+      trainJobs,
       project,
       preferredProject,
       projects,
     }),
-    [pytorchJobs, project, preferredProject, projects],
+    [pytorchJobs, trainJobs, project, preferredProject, projects],
   );
 
   return (

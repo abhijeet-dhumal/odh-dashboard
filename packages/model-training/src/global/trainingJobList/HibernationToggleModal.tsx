@@ -2,11 +2,11 @@ import * as React from 'react';
 import { Modal, ModalVariant, ModalHeader, ModalBody, ModalFooter } from '@patternfly/react-core';
 import { getDisplayNameFromK8sResource } from '@odh-dashboard/internal/concepts/k8s/utils';
 import DashboardModalFooter from '@odh-dashboard/internal/concepts/dashboard/DashboardModalFooter';
-import { PyTorchJobKind } from '../../k8sTypes';
+import { TrainingJob } from './utils';
 
 type HibernationToggleModalProps = {
-  job?: PyTorchJobKind;
-  isPaused: boolean;
+  job?: TrainingJob;
+  isSuspended: boolean;
   isToggling: boolean;
   onClose: () => void;
   onConfirm: () => void;
@@ -14,7 +14,7 @@ type HibernationToggleModalProps = {
 
 const HibernationToggleModal: React.FC<HibernationToggleModalProps> = ({
   job,
-  isPaused,
+  isSuspended,
   isToggling,
   onClose,
   onConfirm,
@@ -24,8 +24,8 @@ const HibernationToggleModal: React.FC<HibernationToggleModalProps> = ({
   }
 
   const displayName = getDisplayNameFromK8sResource(job);
-  const action = isPaused ? 'resume' : 'pause';
-  const actionLabel = isPaused ? 'Resume' : 'Pause';
+  const action = isSuspended ? 'resume' : 'suspend';
+  const actionLabel = isSuspended ? 'Resume' : 'Suspend';
 
   return (
     <Modal
@@ -36,16 +36,16 @@ const HibernationToggleModal: React.FC<HibernationToggleModalProps> = ({
     >
       <ModalHeader
         title={`${actionLabel} training job`}
-        titleIconVariant={isPaused ? 'info' : 'warning'}
+        titleIconVariant={isSuspended ? 'info' : 'warning'}
       />
       <ModalBody>
         Are you sure you want to {action} the training job{' '}
         <strong>&quot;{displayName}&quot;</strong>?
         <br />
         <br />
-        {isPaused
+        {isSuspended
           ? `The job will be resumed and resources will be allocated to continue training.`
-          : `The job will be paused and resources will be freed up. The job can be resumed later
+          : `The job will be suspended and resources will be freed up. The job can be resumed later
               from where it left off.`}
       </ModalBody>
       <ModalFooter>
@@ -53,7 +53,7 @@ const HibernationToggleModal: React.FC<HibernationToggleModalProps> = ({
           onCancel={onClose}
           onSubmit={onConfirm}
           submitLabel={actionLabel}
-          submitButtonVariant={isPaused ? 'primary' : 'secondary'}
+          submitButtonVariant={isSuspended ? 'primary' : 'secondary'}
           isSubmitLoading={isToggling}
           isSubmitDisabled={isToggling}
           isCancelDisabled={isToggling}

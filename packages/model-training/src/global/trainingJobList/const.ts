@@ -1,13 +1,12 @@
 import { SortableData } from '@odh-dashboard/internal/components/table/index';
-import { getTrainingJobStatusSync } from './utils';
-import { PyTorchJobKind } from '../../k8sTypes';
+import { getJobStatus, TrainingJob } from './utils';
 
-export const columns: SortableData<PyTorchJobKind>[] = [
+export const columns: SortableData<TrainingJob>[] = [
   {
     field: 'name',
     label: 'Name',
     width: 20,
-    sortable: (a: PyTorchJobKind, b: PyTorchJobKind): number =>
+    sortable: (a: TrainingJob, b: TrainingJob): number =>
       (a.metadata.annotations?.['opendatahub.io/display-name'] || a.metadata.name).localeCompare(
         b.metadata.annotations?.['opendatahub.io/display-name'] || b.metadata.name,
       ),
@@ -16,33 +15,29 @@ export const columns: SortableData<PyTorchJobKind>[] = [
     field: 'project',
     label: 'Project',
     width: 20,
-    sortable: (a: PyTorchJobKind, b: PyTorchJobKind): number =>
+    sortable: (a: TrainingJob, b: TrainingJob): number =>
       a.metadata.namespace.localeCompare(b.metadata.namespace),
   },
   {
-    field: 'nodes',
-    label: 'Nodes',
+    field: 'workerNodes',
+    label: 'Worker nodes',
     width: 15,
-    sortable: (a: PyTorchJobKind, b: PyTorchJobKind): number => {
-      const aNodes =
-        (a.spec.pytorchReplicaSpecs.Worker?.replicas || 0) +
-        (a.spec.pytorchReplicaSpecs.Master?.replicas || 0);
-      const bNodes =
-        (b.spec.pytorchReplicaSpecs.Worker?.replicas || 0) +
-        (b.spec.pytorchReplicaSpecs.Master?.replicas || 0);
+    sortable: (a: TrainingJob, b: TrainingJob): number => {
+      const aWorker = a.kind === 'PyTorchJob' 
+        ? (a as any).spec.pytorchReplicaSpecs.Worker?.replicas || 0
+        : (a as any).spec.trainer?.numNodes || 1;
+      const bWorker = b.kind === 'PyTorchJob' 
+        ? (b as any).spec.pytorchReplicaSpecs.Worker?.replicas || 0
+        : (b as any).spec.trainer?.numNodes || 1;
 
-      return aNodes - bNodes;
-    },
-    info: {
-      popoverProps: { hasAutoWidth: true },
-      popover: 'Total number of nodes (Worker + Master replicas)',
+      return aWorker - bWorker;
     },
   },
   {
     field: 'clusterQueue',
     label: 'Cluster queue',
     width: 10,
-    sortable: (a: PyTorchJobKind, b: PyTorchJobKind): number => {
+    sortable: (a: TrainingJob, b: TrainingJob): number => {
       const aQueue = a.metadata.labels?.['kueue.x-k8s.io/queue-name'] || '';
       const bQueue = b.metadata.labels?.['kueue.x-k8s.io/queue-name'] || '';
       return aQueue.localeCompare(bQueue);
@@ -52,7 +47,7 @@ export const columns: SortableData<PyTorchJobKind>[] = [
     field: 'created',
     label: 'Created',
     width: 15,
-    sortable: (a: PyTorchJobKind, b: PyTorchJobKind): number => {
+    sortable: (a: TrainingJob, b: TrainingJob): number => {
       const first = a.metadata.creationTimestamp;
       const second = b.metadata.creationTimestamp;
       return new Date(first ?? 0).getTime() - new Date(second ?? 0).getTime();
@@ -62,12 +57,35 @@ export const columns: SortableData<PyTorchJobKind>[] = [
     field: 'status',
     label: 'Status',
     width: 15,
-    sortable: (a: PyTorchJobKind, b: PyTorchJobKind): number => {
+    sortable: (a: TrainingJob, b: TrainingJob): number => {
       // For sorting, we use the sync version for performance
       // The actual hibernation status will be shown in the UI
-      const aState = getTrainingJobStatusSync(a);
-      const bState = getTrainingJobStatusSync(b);
+      const aState = getJobStatus(a);
+      const bState = getJobStatus(b);
       return aState.localeCompare(bState);
+    },
+  },
+  {
+    field: 'progress',
+    label: 'Progress',
+    width: 10,
+    sortable: (a: TrainingJob, b: TrainingJob): number => {
+      // Sort by completion percentage
+      const getPercentage = (job: TrainingJob): number => {
+        if (job.kind === 'TrainJob' && (job as any).status?.progressionStatus?.percentageComplete) {
+          return parseFloat((job as any).status.progressionStatus.percentageComplete);
+        }
+        if (job.kind === 'PyTorchJob' && (job as any).status?.completionPercentage) {
+          return (job as any).status.completionPercentage;
+        }
+        // For completed jobs, return 100%
+        if ((job as any).status?.conditions?.some((c: any) => c.type === 'Succeeded' && c.status === 'True')) {
+          return 100;
+        }
+        return 0;
+      };
+      
+      return getPercentage(a) - getPercentage(b);
     },
   },
   {

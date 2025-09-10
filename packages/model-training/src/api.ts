@@ -10,8 +10,8 @@ import { WorkloadModel } from '@odh-dashboard/internal/api/models/kueue';
 import { groupVersionKind } from '@odh-dashboard/internal/api/k8sUtils';
 import { CustomWatchK8sResult } from '@odh-dashboard/internal/types';
 import useK8sWatchResourceList from '@odh-dashboard/internal/utilities/useK8sWatchResourceList';
-import { PyTorchJobModel } from '@odh-dashboard/internal/api/models/kubeflow';
-import { PyTorchJobKind } from './k8sTypes';
+import { PyTorchJobModel, TrainJobModel } from '@odh-dashboard/internal/api/models/kubeflow';
+import { PyTorchJobKind, TrainJobKind } from './k8sTypes';
 
 export const usePyTorchJobs = (namespace: string): CustomWatchK8sResult<PyTorchJobKind[]> =>
   useK8sWatchResourceList(
@@ -23,6 +23,16 @@ export const usePyTorchJobs = (namespace: string): CustomWatchK8sResult<PyTorchJ
     PyTorchJobModel,
   );
 
+export const useTrainJobs = (namespace: string): CustomWatchK8sResult<TrainJobKind[]> =>
+  useK8sWatchResourceList(
+    {
+      isList: true,
+      groupVersionKind: groupVersionKind(TrainJobModel),
+      namespace,
+    },
+    TrainJobModel,
+  );
+
 export const deletePyTorchJob = (
   name: string,
   namespace: string,
@@ -32,6 +42,21 @@ export const deletePyTorchJob = (
     applyK8sAPIOptions(
       {
         model: PyTorchJobModel,
+        queryOptions: { name, ns: namespace },
+      },
+      opts,
+    ),
+  );
+
+export const deleteTrainJob = (
+  name: string,
+  namespace: string,
+  opts?: K8sAPIOptions,
+): Promise<K8sStatus> =>
+  k8sDeleteResource<TrainJobKind, K8sStatus>(
+    applyK8sAPIOptions(
+      {
+        model: TrainJobModel,
         queryOptions: { name, ns: namespace },
       },
       opts,
@@ -63,6 +88,35 @@ export const getWorkloadForPyTorchJob = async (
     return null;
   } catch (error) {
     console.warn('Failed to fetch workload for PyTorchJob:', error);
+    return null;
+  }
+};
+
+export const getWorkloadForTrainJob = async (
+  job: TrainJobKind,
+): Promise<WorkloadKind | null> => {
+  try {
+    // Try to find workload by job UID (most reliable)
+    const workloadsByUID = await listWorkloads(
+      job.metadata.namespace,
+      `kueue.x-k8s.io/job-uid=${job.metadata.uid}`,
+    );
+    if (workloadsByUID.length > 0) {
+      return workloadsByUID[0];
+    }
+
+    // Fallback: try to find by job name if UID doesn't work
+    const workloadsByName = await listWorkloads(
+      job.metadata.namespace,
+      `kueue.x-k8s.io/job-name=${job.metadata.name}`,
+    );
+    if (workloadsByName.length > 0) {
+      return workloadsByName[0];
+    }
+
+    return null;
+  } catch (error) {
+    console.warn('Failed to fetch workload for TrainJob:', error);
     return null;
   }
 };
