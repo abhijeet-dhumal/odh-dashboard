@@ -9,7 +9,7 @@ import {
   ClockIcon,
 } from '@patternfly/react-icons';
 import { LabelProps } from '@patternfly/react-core';
-import { PyTorchJobKind, TrainJobKind, RayJobKind } from '../../k8sTypes';
+import { PyTorchJobKind, TrainJobKind } from '../../k8sTypes';
 import { PyTorchJobState, TrainJobState, TrainingJobState, TrainingJobType } from '../../types';
 import { getWorkloadForPyTorchJob, getWorkloadForTrainJob } from '../../api';
 
@@ -446,11 +446,10 @@ export const getTrainJobStatusWithHibernation = async (
 };
 
 // Generic functions that work with both job types
-export type TrainingJob = PyTorchJobKind | TrainJobKind | RayJobKind;
+export type TrainingJob = PyTorchJobKind | TrainJobKind;
 
 export const getJobType = (job: TrainingJob): TrainingJobType => {
   if (job.kind === 'TrainJob') return TrainingJobType.TRAIN;
-  if (job.kind === 'RayJob') return TrainingJobType.RAY;
   return TrainingJobType.PYTORCH;
 };
 
@@ -458,30 +457,7 @@ export const getJobStatus = (job: TrainingJob): TrainingJobState => {
   if (job.kind === 'TrainJob') {
     return getBasicTrainJobStatus(job as TrainJobKind);
   }
-  if (job.kind === 'RayJob') {
-    return getRayJobStatus(job as RayJobKind);
-  }
   return getTrainingJobStatusSync(job as PyTorchJobKind);
-};
-
-// Helper function to get RayJob status
-const getRayJobStatus = (job: RayJobKind): TrainingJobState => {
-  const status = job.status?.jobStatus;
-  switch (status) {
-    case 'NEW':
-    case 'PENDING':
-      return 'Pending' as TrainingJobState;
-    case 'RUNNING':
-      return 'Running' as TrainingJobState;
-    case 'SUCCEEDED':
-      return 'Succeeded' as TrainingJobState;
-    case 'FAILED':
-      return 'Failed' as TrainingJobState;
-    case 'STOPPED':
-      return 'Suspended' as TrainingJobState;
-    default:
-      return 'Unknown' as TrainingJobState;
-  }
 };
 
 export const getJobStatusWithHibernationGeneric = async (job: TrainingJob): Promise<TrainingJobState> => {

@@ -14,7 +14,7 @@ import {
 import { ProjectModel } from '#~/__tests__/cypress/cypress/utils/models';
 import { LocalQueueModel, PyTorchJobModel } from '#~/api/models';
 import { mockLocalQueueK8sResource } from '#~/__mocks__/mockLocalQueueK8sResource';
-import { PyTorchJobState } from '../../../../../../../packages/model-training/src/types';
+import { PyTorchJobState } from '../../../../../../../packages/model-training-v2/src/types';
 
 const projectName = 'test-model-training-project';
 const projectDisplayName = 'Test Model Training Project';

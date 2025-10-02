@@ -28,26 +28,6 @@ const WorkerNodesIcon: React.FC<WorkerNodesIconProps> = ({ job }) => {
         resourcesPerNode: workerResources || masterResources || {},
         jobType: 'PyTorchJob'
       };
-    } else if (job.kind === 'RayJob') {
-      const rayJob = job as any;
-      const headNodes = rayJob.spec.rayClusterSpec.headGroupSpec?.replicas || 1;
-      const workerNodes = rayJob.spec.rayClusterSpec.workerGroupSpecs?.reduce(
-        (total: number, group: any) => total + (group.replicas || 0), 0
-      ) || 0;
-      const totalNodes = headNodes + workerNodes;
-      
-      // Get resources from head node spec
-      const headResources = rayJob.spec.rayClusterSpec.headGroupSpec?.template?.spec?.containers?.[0]?.resources;
-      const workerResources = rayJob.spec.rayClusterSpec.workerGroupSpecs?.[0]?.template?.spec?.containers?.[0]?.resources;
-      
-      return {
-        numNodes: totalNodes,
-        numProcPerNode: 1, // Ray manages processes internally
-        headNodes,
-        workerNodes,
-        resourcesPerNode: headResources || workerResources || {},
-        jobType: 'RayJob'
-      };
     } else if (job.kind === 'TrainJob') {
       const trainJob = job as any;
       const numNodes = trainJob.spec.trainer?.numNodes || 1;
@@ -151,16 +131,6 @@ const WorkerNodesIcon: React.FC<WorkerNodesIconProps> = ({ job }) => {
             </div>
           </>
         )}
-        {getWorkerNodeInfo.jobType === 'RayJob' && getWorkerNodeInfo.headNodes !== undefined && (
-          <>
-            <div style={{ fontSize: '12px', marginBottom: '3px' }}>
-              <span style={{ color: '#4da6ff', fontWeight: '600' }}>Head nodes:</span> {getWorkerNodeInfo.headNodes}
-            </div>
-            <div style={{ fontSize: '12px', marginBottom: '3px' }}>
-              <span style={{ color: '#4da6ff', fontWeight: '600' }}>Worker nodes:</span> {getWorkerNodeInfo.workerNodes}
-            </div>
-          </>
-        )}
       </div>
 
       {/* Resources per Node */}
@@ -228,13 +198,6 @@ const WorkerNodesIcon: React.FC<WorkerNodesIconProps> = ({ job }) => {
   const displayValue = React.useMemo(() => {
     if (job.kind === 'PyTorchJob') {
       return (job as any).spec.pytorchReplicaSpecs.Worker?.replicas || 0;
-    } else if (job.kind === 'RayJob') {
-      const rayJob = job as any;
-      const headNodes = rayJob.spec.rayClusterSpec.headGroupSpec?.replicas || 1;
-      const workerNodes = rayJob.spec.rayClusterSpec.workerGroupSpecs?.reduce(
-        (total: number, group: any) => total + (group.replicas || 0), 0
-      ) || 0;
-      return headNodes + workerNodes;
     } else {
       return (job as any).spec.trainer?.numNodes || 1;
     }

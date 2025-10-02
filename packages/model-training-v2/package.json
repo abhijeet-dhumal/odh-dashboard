@@ -1,7 +1,7 @@
 {
   "private": true,
-  "name": "@odh-dashboard/model-training",
-  "description": "Model training plugin for managing training jobs and experiments.",
+  "name": "@odh-dashboard/model-training-v2",
+  "description": "Model training v2 plugin for managing training jobs and experiments.",
   "version": "0.0.0",
   "scripts": {
     "lint": "eslint .",

@@ -26,16 +26,10 @@ export const columns: SortableData<TrainingJob>[] = [
       const getWorkerCount = (job: TrainingJob): number => {
         if (job.kind === 'PyTorchJob') {
           return (job as any).spec.pytorchReplicaSpecs.Worker?.replicas || 0;
-        } else if (job.kind === 'RayJob') {
-          const rayJob = job as any;
-          const headNodes = rayJob.spec.rayClusterSpec.headGroupSpec?.replicas || 1;
-          const workerNodes = rayJob.spec.rayClusterSpec.workerGroupSpecs?.reduce(
-            (total: number, group: any) => total + (group.replicas || 0), 0
-          ) || 0;
-          return headNodes + workerNodes;
-        } else {
+        } else if (job.kind === 'TrainJob') {
           return (job as any).spec.trainer?.numNodes || 1;
         }
+        return 1;
       };
 
       return getWorkerCount(a) - getWorkerCount(b);

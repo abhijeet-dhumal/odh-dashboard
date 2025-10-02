@@ -2,10 +2,7 @@ import React from 'react';
 import { 
   EmptyStateBody, 
   EmptyStateVariant, 
-  EmptyState,
-  Tabs,
-  Tab,
-  TabTitleText 
+  EmptyState
 } from '@patternfly/react-core';
 import { SearchIcon } from '@patternfly/react-icons';
 import { useNavigate } from 'react-router-dom';
@@ -17,26 +14,15 @@ import ModelTrainingLoading from './ModelTrainingLoading';
 import TrainingJobListView from './trainingJobList/TrainingJobListView';
 import ModelTrainingProjectSelector from '../components/ModelTrainingProjectSelector';
 
-const title = 'Model training';
+const title = 'Model training - v2';
 const description =
   'Monitor training progress and manage distributed training workloads across your data science projects. Select a project to view its TrainJobs. ';
 
 const ModelTraining = (): React.ReactElement => {
   const navigate = useNavigate();
-  const { pytorchJobs, trainJobs, rayJobs, project, preferredProject, projects } =
+  const { trainJobs, project, preferredProject, projects } =
     React.useContext(ModelTrainingContext);
-  const [pytorchJobData, pytorchJobLoaded, pytorchJobLoadError] = pytorchJobs;
   const [trainJobData, trainJobLoaded, trainJobLoadError] = trainJobs;
-  const [rayJobData, rayJobLoaded, rayJobLoadError] = rayJobs;
-  const [activeTab, setActiveTab] = React.useState<string | number>('trainjobs');
-
-  // Combine all job types for backward compatibility
-  const allJobs = React.useMemo(() => {
-    return [...trainJobData, ...rayJobData];
-  }, [trainJobData, rayJobData]);
-
-  const allJobsLoaded = trainJobLoaded && rayJobLoaded;
-  const allJobsLoadError = trainJobLoadError || rayJobLoadError;
 
   const emptyState = (
     <EmptyState
@@ -54,12 +40,12 @@ const ModelTraining = (): React.ReactElement => {
 
   return (
     <ApplicationsPage
-      empty={allJobs.length === 0}
+      empty={trainJobData.length === 0}
       emptyStatePage={emptyState}
       title={<TitleWithIcon title={title} objectType={ProjectObjectType.modelCustomization} />}
       description={description}
-      loadError={allJobsLoadError}
-      loaded={allJobsLoaded}
+      loadError={trainJobLoadError}
+      loaded={trainJobLoaded}
       headerContent={
         <ModelTrainingProjectSelector getRedirectPath={(ns: string) => `/modelTraining/${ns}`} />
       }
@@ -79,25 +65,7 @@ const ModelTraining = (): React.ReactElement => {
         )
       }
     >
-      <div style={{ marginBottom: 'var(--pf-v5-global--spacer--xl)' }}>
-        <Tabs
-          activeKey={activeTab}
-          onSelect={(event, tabIndex) => setActiveTab(tabIndex)}
-          isBox={false}
-          hasNoBorderBottom
-        >
-          <Tab eventKey="trainjobs" title={<TabTitleText>TrainJobs ({trainJobData.length})</TabTitleText>} />
-          <Tab eventKey="rayjobs" title={<TabTitleText>RayJobs ({rayJobData.length})</TabTitleText>} />
-        </Tabs>
-      </div>
-      <div>
-        {activeTab === 'trainjobs' && (
-          <TrainingJobListView trainingJobs={trainJobData as any} />
-        )}
-        {activeTab === 'rayjobs' && (
-          <TrainingJobListView trainingJobs={rayJobData as any} />
-        )}
-      </div>
+      <TrainingJobListView trainingJobs={trainJobData as any} />
     </ApplicationsPage>
   );
 };

@@ -25,7 +25,7 @@ const extensions: (AreaExtension | HrefNavItemExtension | RouteExtension)[] = [
     },
     properties: {
       id: 'modelTraining',
-      title: 'Model training',
+      title: 'Model training - v2',
       href: '/modelTraining',
       section: 'models',
       path: '/modelTraining/*',
