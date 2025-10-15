@@ -13,7 +13,7 @@ export const techPreviewFlags = {
 } satisfies Partial<DashboardCommonConfig>;
 
 export const devTemporaryFeatureFlags = {
-  disableKueue: true,
+  // disableKueue: true, // Removed - Kueue is now production ready
   disableFeatureStore: true,
   disableLlamaStackChatBot: true, // internal dev only
   disableProjectScoped: true,
@@ -62,6 +62,7 @@ export const modelServingFlags = {
 export const advancedAIMLFlags = {
   disablePipelines: false,
   disableDistributedWorkloads: false,
+  disableKueue: false, // Kueue is now production ready and available
   disableModelCatalog: true,
   disableModelRegistrySecureDB: false,
   disableFineTuning: true,
@@ -173,11 +174,14 @@ export const SupportedAreasStateMap: SupportedAreasState = {
   },
   [SupportedArea.DISTRIBUTED_WORKLOADS]: {
     featureFlags: ['disableDistributedWorkloads'],
-    requiredComponents: [StackComponent.KUEUE],
+    // Don't require ODH-managed Kueue component since it can be externally managed
+    // requiredComponents: [StackComponent.KUEUE],
+    reliantAreas: [SupportedArea.KUEUE],
   },
   [SupportedArea.KUEUE]: {
     featureFlags: ['disableKueue'],
-    requiredComponents: [StackComponent.KUEUE],
+    // Don't require ODH-managed Kueue component since it can be externally managed
+    // requiredComponents: [StackComponent.KUEUE],
   },
   [SupportedArea.MODEL_CATALOG]: {
     featureFlags: ['disableModelCatalog'],
