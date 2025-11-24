@@ -2,11 +2,13 @@ import {
   k8sDeleteResource,
   K8sStatus,
   k8sPatchResource,
+  k8sListResource,
 } from '@openshift/dynamic-plugin-sdk-utils';
 import { applyK8sAPIOptions } from '@odh-dashboard/internal/api/apiMergeUtils';
-import { K8sAPIOptions, WorkloadKind } from '@odh-dashboard/internal/k8sTypes';
+import { K8sAPIOptions, WorkloadKind, PodKind } from '@odh-dashboard/internal/k8sTypes';
 import { listWorkloads } from '@odh-dashboard/internal/api/k8s/workloads';
 import { WorkloadModel } from '@odh-dashboard/internal/api/models/kueue';
+import { PodModel } from '@odh-dashboard/internal/api/models/k8s';
 import { groupVersionKind } from '@odh-dashboard/internal/api/k8sUtils';
 import { CustomWatchK8sResult } from '@odh-dashboard/internal/types';
 import useK8sWatchResourceList from '@odh-dashboard/internal/utilities/useK8sWatchResourceList';
@@ -166,3 +168,25 @@ export const toggleTrainJobHibernation = async (
     };
   }
 };
+
+/**
+ * Get pods associated with a training job
+ * Training jobs use JobSets under the hood, so pods are labeled with jobset.sigs.k8s.io/jobset-name
+ */
+export const getPodsForTrainJob = (
+  namespace: string,
+  trainJobName: string,
+  opts?: K8sAPIOptions,
+): Promise<PodKind[]> =>
+  k8sListResource<PodKind>(
+    applyK8sAPIOptions(
+      {
+        model: PodModel,
+        queryOptions: {
+          ns: namespace,
+          queryParams: { labelSelector: `jobset.sigs.k8s.io/jobset-name=${trainJobName}` },
+        },
+      },
+      opts,
+    ),
+  ).then((r) => r.items);

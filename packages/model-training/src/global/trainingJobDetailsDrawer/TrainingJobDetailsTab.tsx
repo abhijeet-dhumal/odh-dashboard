@@ -7,17 +7,21 @@ import {
   Title,
   StackItem,
   Stack,
+  Progress,
+  ProgressVariant,
 } from '@patternfly/react-core';
 import { TrainJobKind } from '../../k8sTypes';
+import { getTrainerStatus } from '../trainingJobList/utils';
 
 type TrainingJobDetailsTabProps = {
   job: TrainJobKind;
 };
 
 const TrainingJobDetailsTab: React.FC<TrainingJobDetailsTabProps> = ({ job }) => {
-  const trainerStatus = job.status?.trainerStatus;
+  const trainerStatus = getTrainerStatus(job);
 
   // Progress information
+  const progressPercentage = trainerStatus?.progressPercentage;
   const estimatedTimeRemaining =
     trainerStatus?.estimatedRemainingTimeSummary ||
     (trainerStatus?.estimatedRemainingDurationSeconds
@@ -29,24 +33,31 @@ const TrainingJobDetailsTab: React.FC<TrainingJobDetailsTabProps> = ({ job }) =>
   const currentEpochs = trainerStatus?.currentEpoch ?? '-';
   const totalEpochs = trainerStatus?.totalEpochs ?? '-';
 
-  // Metrics - combine train and eval metrics
-  const allMetrics = {
-    ...trainerStatus?.trainMetrics,
-    ...trainerStatus?.evalMetrics,
+  // Helper to format metric names (snake_case -> Title Case)
+  const formatMetricName = (key: string): string => {
+    return key
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   };
 
-  // Extract common metrics (case-insensitive lookup)
-  const getMetric = (name: string): string => {
-    const key = Object.keys(allMetrics).find((k) => k.toLowerCase() === name.toLowerCase());
-    return key ? allMetrics[key].toString() : '-';
+  // Helper to format metric values
+  const formatMetricValue = (value: number): string => {
+    // For very small or very large numbers, use scientific notation
+    if (Math.abs(value) < 0.0001 && value !== 0) {
+      return value.toExponential(4);
+    }
+    // For regular numbers, show up to 6 decimal places, but remove trailing zeros
+    return parseFloat(value.toFixed(6)).toString();
   };
 
-  const loss = getMetric('loss');
-  const accuracy = getMetric('accuracy');
-  const totalBatches =
-    getMetric('total_batches') !== '-' ? getMetric('total_batches') : getMetric('batches');
-  const totalSamples =
-    getMetric('total_samples') !== '-' ? getMetric('total_samples') : getMetric('samples');
+  // Get all train metrics
+  const trainMetrics = trainerStatus?.trainMetrics || {};
+  const hasTrainMetrics = Object.keys(trainMetrics).length > 0;
+
+  // Get all eval metrics
+  const evalMetrics = trainerStatus?.evalMetrics || {};
+  const hasEvalMetrics = Object.keys(evalMetrics).length > 0;
 
   return (
     <Stack hasGutter>
@@ -55,9 +66,37 @@ const TrainingJobDetailsTab: React.FC<TrainingJobDetailsTabProps> = ({ job }) =>
           <Title headingLevel="h3" size="md" data-testid="progress-section">
             Progress
           </Title>
+          {progressPercentage != null && (
+            <>
+              <DescriptionListGroup>
+                <DescriptionListTerm style={{ fontWeight: 'normal' }}>
+                  Progress percentage:
+                </DescriptionListTerm>
+                <DescriptionListDescription data-testid="progress-percentage-value">
+                  {progressPercentage}%
+                </DescriptionListDescription>
+              </DescriptionListGroup>
+              <DescriptionListGroup>
+                <DescriptionListTerm style={{ fontWeight: 'normal' }}>
+                  Progress:
+                </DescriptionListTerm>
+                <DescriptionListDescription>
+                  <Progress
+                    value={progressPercentage}
+                    title="Training progress"
+                    variant={
+                      progressPercentage === 100 ? ProgressVariant.success : undefined
+                    }
+                    style={{ width: '300px' }}
+                    aria-label="Training progress bar"
+                  />
+                </DescriptionListDescription>
+              </DescriptionListGroup>
+            </>
+          )}
           <DescriptionListGroup>
             <DescriptionListTerm style={{ fontWeight: 'normal' }}>
-              Estimated time remaining
+              Estimated time remaining:
             </DescriptionListTerm>
             <DescriptionListDescription data-testid="estimated-time-remaining-value">
               {estimatedTimeRemaining}
@@ -77,39 +116,62 @@ const TrainingJobDetailsTab: React.FC<TrainingJobDetailsTabProps> = ({ job }) =>
           </DescriptionListGroup>
         </DescriptionList>
       </StackItem>
-      <StackItem className="pf-v6-u-mt-md pf-v6-u-mb-md">
-        <DescriptionList isHorizontal>
-          <Title headingLevel="h3" size="md" data-testid="metrics-section">
-            Metrics
-          </Title>
-          <DescriptionListGroup>
-            <DescriptionListTerm style={{ fontWeight: 'normal' }}>Loss:</DescriptionListTerm>
-            <DescriptionListDescription data-testid="loss-value">{loss}</DescriptionListDescription>
-          </DescriptionListGroup>
-          <DescriptionListGroup>
-            <DescriptionListTerm style={{ fontWeight: 'normal' }}>Accuracy:</DescriptionListTerm>
-            <DescriptionListDescription data-testid="accuracy-value">
-              {accuracy}
-            </DescriptionListDescription>
-          </DescriptionListGroup>
-          <DescriptionListGroup>
-            <DescriptionListTerm style={{ fontWeight: 'normal' }}>
-              Total batches:
-            </DescriptionListTerm>
-            <DescriptionListDescription data-testid="total-batches-value">
-              {totalBatches}
-            </DescriptionListDescription>
-          </DescriptionListGroup>
-          <DescriptionListGroup>
-            <DescriptionListTerm style={{ fontWeight: 'normal' }}>
-              Total samples:
-            </DescriptionListTerm>
-            <DescriptionListDescription data-testid="total-samples-value">
-              {totalSamples}
-            </DescriptionListDescription>
-          </DescriptionListGroup>
-        </DescriptionList>
-      </StackItem>
+
+      {/* Train Metrics Section */}
+      {hasTrainMetrics && (
+        <StackItem className="pf-v6-u-mt-md">
+          <DescriptionList isHorizontal>
+            <Title headingLevel="h3" size="md" data-testid="train-metrics-section">
+              Train Metrics
+            </Title>
+            {Object.entries(trainMetrics).map(([key, value]) => (
+              <DescriptionListGroup key={key}>
+                <DescriptionListTerm style={{ fontWeight: 'normal' }}>
+                  {formatMetricName(key)}:
+                </DescriptionListTerm>
+                <DescriptionListDescription data-testid={`train-metric-${key}-value`}>
+                  {formatMetricValue(value)}
+                </DescriptionListDescription>
+              </DescriptionListGroup>
+            ))}
+          </DescriptionList>
+        </StackItem>
+      )}
+
+      {/* Eval Metrics Section */}
+      {hasEvalMetrics && (
+        <StackItem className="pf-v6-u-mt-md pf-v6-u-mb-md">
+          <DescriptionList isHorizontal>
+            <Title headingLevel="h3" size="md" data-testid="eval-metrics-section">
+              Eval Metrics
+            </Title>
+            {Object.entries(evalMetrics).map(([key, value]) => (
+              <DescriptionListGroup key={key}>
+                <DescriptionListTerm style={{ fontWeight: 'normal' }}>
+                  {formatMetricName(key)}:
+                </DescriptionListTerm>
+                <DescriptionListDescription data-testid={`eval-metric-${key}-value`}>
+                  {formatMetricValue(value)}
+                </DescriptionListDescription>
+              </DescriptionListGroup>
+            ))}
+          </DescriptionList>
+        </StackItem>
+      )}
+
+      {/* Show message if no metrics available */}
+      {!hasTrainMetrics && !hasEvalMetrics && (
+        <StackItem className="pf-v6-u-mt-md pf-v6-u-mb-md">
+          <DescriptionList isHorizontal>
+            <Title headingLevel="h3" size="md" data-testid="metrics-section">
+              Metrics
+            </Title>
+            <DescriptionListGroup>
+              <DescriptionListDescription>No metrics available</DescriptionListDescription>
+            </DescriptionListGroup>
+          </DescriptionList>
+        </StackItem>
+      )}
     </Stack>
   );
 };

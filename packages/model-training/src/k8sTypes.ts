@@ -17,6 +17,7 @@ export type TrainJobKind = K8sResourceCommon & {
   metadata: {
     annotations?: Partial<{
       'opendatahub.io/display-name': string;
+      'trainer.opendatahub.io/trainerStatus': string;
     }>;
     name: string;
     namespace: string;

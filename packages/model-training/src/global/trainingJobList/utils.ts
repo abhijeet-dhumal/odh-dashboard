@@ -9,9 +9,34 @@ import {
   PauseCircleIcon,
 } from '@patternfly/react-icons';
 import { LabelProps } from '@patternfly/react-core';
-import { TrainJobKind } from '../../k8sTypes';
+import { TrainJobKind, TrainerStatus } from '../../k8sTypes';
 import { TrainingJobState } from '../../types';
 import { getWorkloadForTrainJob } from '../../api';
+
+/**
+ * Get trainerStatus from either status field or annotation
+ * @param job - TrainJob to extract trainerStatus from
+ * @returns TrainerStatus object or undefined
+ */
+export const getTrainerStatus = (job: TrainJobKind): TrainerStatus | undefined => {
+  // First try to get from status field
+  if (job.status?.trainerStatus) {
+    return job.status.trainerStatus;
+  }
+
+  // Fall back to annotation
+  const annotationValue = job.metadata.annotations?.['trainer.opendatahub.io/trainerStatus'];
+  if (annotationValue) {
+    try {
+      return JSON.parse(annotationValue) as TrainerStatus;
+    } catch (error) {
+      console.error('Failed to parse trainerStatus annotation:', error);
+      return undefined;
+    }
+  }
+
+  return undefined;
+};
 
 export const getStatusInfo = (
   status: TrainingJobState,
@@ -109,11 +134,20 @@ const getBasicJobStatus = (job: TrainJobKind): TrainingJobState => {
   const currentCondition = sortedConditions.find((condition) => condition.status === 'True');
 
   if (!currentCondition) {
+    // No condition with status=True, but check jobsStatus for active jobs
+    const hasActiveJobs = job.status?.jobsStatus?.some((js) => (js.active || 0) > 0);
+    const hasReadyJobs = job.status?.jobsStatus?.some((js) => (js.ready || 0) > 0);
+    
+    if (hasActiveJobs || hasReadyJobs) {
+      return TrainingJobState.RUNNING;
+    }
+    
     return TrainingJobState.UNKNOWN;
   }
 
   switch (currentCondition.type) {
     case 'Succeeded':
+    case 'Complete': // TrainJob uses 'Complete' instead of 'Succeeded'
       return TrainingJobState.SUCCEEDED;
     case 'Failed':
       return TrainingJobState.FAILED;
@@ -179,7 +213,13 @@ export const getTrainingJobStatus = async (
         return { status: TrainingJobState.PREEMPTED, isLoading: false };
       }
 
-      // Priority 3: Check for running status - PodsReady condition with status=True
+      // Priority 3: If TrainJob itself says Running, trust that over workload status
+      // This handles cases where pods are running but workload hasn't updated PodsReady yet
+      if (basicStatus === TrainingJobState.RUNNING) {
+        return { status: TrainingJobState.RUNNING, isLoading: false };
+      }
+
+      // Priority 4: Check for running status - PodsReady condition with status=True
       const podsReadyCondition = conditions.find(
         (c) => c.type === 'PodsReady' && c.status === 'True',
       );
@@ -188,9 +228,15 @@ export const getTrainingJobStatus = async (
         return { status: TrainingJobState.RUNNING, isLoading: false };
       }
 
-      // Priority 4: Check for queued status - Everything else is queued
-      // Also check if the workload conditions list contains type "Admitted"
-      // (if it doesn't, it means it was never in a running state)
+      // Priority 5: Check if admitted but not yet running (pods are starting)
+      const admittedCondition = conditions.find((c) => c.type === 'Admitted' && c.status === 'True');
+      
+      if (admittedCondition) {
+        // Job is admitted and starting - show as Pending instead of Queued
+        return { status: TrainingJobState.PENDING, isLoading: false };
+      }
+
+      // Priority 6: Check for queued status - Everything else is queued
       return { status: TrainingJobState.QUEUED, isLoading: false };
     }
     // Non-Kueue job: Check TrainJob spec.suspend for hibernation

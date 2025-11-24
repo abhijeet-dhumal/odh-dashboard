@@ -19,6 +19,8 @@ import {
 import { EllipsisVIcon } from '@patternfly/react-icons';
 import TrainingJobResourcesTab from './TrainingJobResourcesTab';
 import TrainingJobDetailsTab from './TrainingJobDetailsTab';
+import TrainingJobPodsTab from './TrainingJobPodsTab';
+import TrainingJobLogsTab from './TrainingJobLogsTab';
 import { TrainJobKind } from '../../k8sTypes';
 
 type TrainingJobDetailsDrawerProps = {
@@ -106,10 +108,10 @@ const TrainingJobDetailsDrawer: React.FC<TrainingJobDetailsDrawerProps> = ({
             <TrainingJobResourcesTab job={job} />
           </Tab>
           <Tab eventKey={2} title={<TabTitleText>Pods</TabTitleText>} aria-label="Pods">
-            <div style={{ padding: '16px 0' }}>Pods content</div>
+            <TrainingJobPodsTab job={job} />
           </Tab>
           <Tab eventKey={3} title={<TabTitleText>Logs</TabTitleText>} aria-label="Logs">
-            <div style={{ padding: '16px 0' }}>Logs content</div>
+            <TrainingJobLogsTab job={job} />
           </Tab>
         </Tabs>
       </DrawerPanelBody>

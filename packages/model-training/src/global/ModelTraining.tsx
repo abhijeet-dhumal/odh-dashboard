@@ -35,6 +35,19 @@ const ModelTraining = (): React.ReactElement => {
     setSelectedJob((prev) => (prev?.metadata.uid === job.metadata.uid ? undefined : job));
   }, []);
 
+  // Sync selected job with live data from watch to keep drawer updated in real-time
+  // This ensures the progress bar and metrics update as the job runs
+  React.useEffect(() => {
+    if (selectedJob && trainJobData.length > 0) {
+      const updatedJob = trainJobData.find((job) => job.metadata.uid === selectedJob.metadata.uid);
+      // Only update if we found the job and it's actually different
+      if (updatedJob && updatedJob !== selectedJob) {
+        setSelectedJob(updatedJob);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trainJobData]);
+
   const isDrawerExpanded = !!selectedJob;
   const selectedJobDisplayName = selectedJob ? getDisplayNameFromK8sResource(selectedJob) : '';
 
