@@ -318,9 +318,9 @@ const TrainingJobLogsTab: React.FC<TrainingJobLogsTabProps> = ({ job }) => {
                   overflow: 'visible',
                   fontFamily:
                     'var(--pf-v6-global--FontFamily--monospace, "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace)',
-                  fontSize: 'var(--pf-v6-global--FontSize--sm, 0.875rem)',
-                  lineHeight: 'var(--pf-v6-global--LineHeight--md, 1.5)',
-                  color: 'var(--pf-v6-global--Color--100, #151515)',
+                  fontSize: '0.6875rem',
+                  lineHeight: '1.3',
+                  color: '#4a4a4a',
                 }}
               >
                 {logs}

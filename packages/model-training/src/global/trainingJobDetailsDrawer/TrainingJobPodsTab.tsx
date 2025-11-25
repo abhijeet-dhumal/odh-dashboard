@@ -20,20 +20,34 @@ const TrainingJobPodsTab: React.FC<TrainingJobPodsTabProps> = ({ job }) => {
   const [loaded, setLoaded] = React.useState(false);
   const [error, setError] = React.useState<string | undefined>();
 
-  React.useEffect(() => {
-    setLoaded(false);
-    setError(undefined);
-
+  // Function to fetch pods
+  const fetchPods = React.useCallback(() => {
     getPodsForTrainJob(job.metadata.namespace, job.metadata.name)
       .then((fetchedPods) => {
         setPods(fetchedPods);
         setLoaded(true);
+        setError(undefined);
       })
       .catch((err) => {
         setError(err.message || 'Failed to fetch pods');
         setLoaded(true);
       });
   }, [job.metadata.namespace, job.metadata.name]);
+
+  // Initial fetch and polling every 5 seconds for real-time updates
+  React.useEffect(() => {
+    setLoaded(false);
+    setError(undefined);
+
+    // Fetch immediately
+    fetchPods();
+
+    // Poll every 5 seconds
+    const intervalId = setInterval(fetchPods, 5000);
+
+    // Cleanup on unmount
+    return () => clearInterval(intervalId);
+  }, [fetchPods]);
 
   if (!loaded) {
     return (
@@ -75,7 +89,11 @@ const TrainingJobPodsTab: React.FC<TrainingJobPodsTabProps> = ({ job }) => {
         </Thead>
         <Tbody>
           {pods.map((pod) => {
+            // Check if pod is terminating (deletionTimestamp is set)
+            const isTerminating = !!pod.metadata?.deletionTimestamp;
             const phase = pod.status?.phase || 'Unknown';
+            const status = isTerminating ? 'Terminating' : phase;
+            
             const containerStatuses = pod.status?.containerStatuses || [];
             const restartCount = containerStatuses.reduce(
               (sum, status) => sum + (status.restartCount || 0),
@@ -84,15 +102,26 @@ const TrainingJobPodsTab: React.FC<TrainingJobPodsTabProps> = ({ job }) => {
             const creationTime = pod.metadata?.creationTimestamp
               ? new Date(pod.metadata.creationTimestamp)
               : null;
-            const age = creationTime
-              ? Math.floor((Date.now() - creationTime.getTime()) / 1000 / 60 / 60 / 24)
-              : null;
-            const ageText = age !== null ? `${age}d` : 'Unknown';
+            
+            // Calculate age in human-readable format
+            let ageText = 'Unknown';
+            if (creationTime) {
+              const ageInSeconds = Math.floor((Date.now() - creationTime.getTime()) / 1000);
+              if (ageInSeconds < 60) {
+                ageText = `${ageInSeconds}s`;
+              } else if (ageInSeconds < 3600) {
+                ageText = `${Math.floor(ageInSeconds / 60)}m`;
+              } else if (ageInSeconds < 86400) {
+                ageText = `${Math.floor(ageInSeconds / 3600)}h`;
+              } else {
+                ageText = `${Math.floor(ageInSeconds / 86400)}d`;
+              }
+            }
 
             return (
               <Tr key={pod.metadata?.uid || pod.metadata?.name}>
                 <Td dataLabel="Name">{pod.metadata?.name}</Td>
-                <Td dataLabel="Status">{phase}</Td>
+                <Td dataLabel="Status">{status}</Td>
                 <Td dataLabel="Restarts">{restartCount}</Td>
                 <Td dataLabel="Age">{ageText}</Td>
               </Tr>

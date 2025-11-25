@@ -415,6 +415,7 @@ export type PodKind = K8sResourceCommon & {
 export type PodContainerStatus = {
   name: string;
   ready: boolean;
+  restartCount?: number;
   state?: {
     running?: boolean | undefined;
     waiting?: boolean | undefined;

@@ -7,8 +7,6 @@ import {
   Title,
   StackItem,
   Stack,
-  Progress,
-  ProgressVariant,
 } from '@patternfly/react-core';
 import { TrainJobKind } from '../../k8sTypes';
 import { getTrainerStatus } from '../trainingJobList/utils';
@@ -67,32 +65,14 @@ const TrainingJobDetailsTab: React.FC<TrainingJobDetailsTabProps> = ({ job }) =>
             Progress
           </Title>
           {progressPercentage != null && (
-            <>
-              <DescriptionListGroup>
-                <DescriptionListTerm style={{ fontWeight: 'normal' }}>
-                  Progress percentage:
-                </DescriptionListTerm>
-                <DescriptionListDescription data-testid="progress-percentage-value">
-                  {progressPercentage}%
-                </DescriptionListDescription>
-              </DescriptionListGroup>
-              <DescriptionListGroup>
-                <DescriptionListTerm style={{ fontWeight: 'normal' }}>
-                  Progress:
-                </DescriptionListTerm>
-                <DescriptionListDescription>
-                  <Progress
-                    value={progressPercentage}
-                    title="Training progress"
-                    variant={
-                      progressPercentage === 100 ? ProgressVariant.success : undefined
-                    }
-                    style={{ width: '300px' }}
-                    aria-label="Training progress bar"
-                  />
-                </DescriptionListDescription>
-              </DescriptionListGroup>
-            </>
+            <DescriptionListGroup>
+              <DescriptionListTerm style={{ fontWeight: 'normal' }}>
+                Progress percentage:
+              </DescriptionListTerm>
+              <DescriptionListDescription data-testid="progress-percentage-value">
+                {progressPercentage}%
+              </DescriptionListDescription>
+            </DescriptionListGroup>
           )}
           <DescriptionListGroup>
             <DescriptionListTerm style={{ fontWeight: 'normal' }}>
